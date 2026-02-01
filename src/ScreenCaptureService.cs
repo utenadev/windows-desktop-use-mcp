@@ -40,16 +40,45 @@ public class ScreenCaptureService {
 
     public bool TryGetSession(string id, out StreamSession s) => _sessions.TryGetValue(id, out s!);
 
+    public void StopAllStreams() {
+        Console.WriteLine($"[Capture] Stopping all {_sessions.Count} streams...");
+        foreach (var session in _sessions.Values) {
+            session.Cts.Cancel();
+        }
+        _sessions.Clear();
+    }
+
     private async Task StreamLoop(StreamSession s) {
         try {
             while (!s.Cts.Token.IsCancellationRequested) {
                 var start = DateTime.UtcNow;
-                var img = CaptureSingle(s.MonIdx, s.MaxW, s.Quality);
-                await s.Channel.Writer.WriteAsync(img, s.Cts.Token);
-                var delay = s.Interval - (int)(DateTime.UtcNow - start).TotalMilliseconds;
-                if (delay > 0) await Task.Delay(delay, s.Cts.Token);
+                try {
+                    var img = CaptureSingle(s.MonIdx, s.MaxW, s.Quality);
+                    await s.Channel.Writer.WriteAsync(img, s.Cts.Token);
+                } catch (Exception ex) when (ex is not OperationCanceledException) {
+                    Console.WriteLine($"[Stream {s.Id}] Capture error: {ex.Message}");
+                    await Task.Delay(1000, s.Cts.Token); // Backoff on error
+                    continue;
+                }
+                
+                var elapsed = (int)(DateTime.UtcNow - start).TotalMilliseconds;
+                var delay = s.Interval - elapsed;
+                if (delay > 0) {
+                    try {
+                        await Task.Delay(delay, s.Cts.Token);
+                    } catch (OperationCanceledException) {
+                        break;
+                    }
+                }
             }
-        } catch (OperationCanceledException) { } finally { s.Channel.Writer.Complete(); }
+        } catch (OperationCanceledException) { 
+            // Normal cancellation, no action needed
+        } catch (Exception ex) {
+            Console.WriteLine($"[Stream {s.Id}] Fatal error: {ex.Message}");
+        } finally { 
+            s.Channel.Writer.Complete();
+            Console.WriteLine($"[Stream {s.Id}] Completed");
+        }
     }
 
     private string ToJpegBase64(Bitmap src, int maxW, int q) {
