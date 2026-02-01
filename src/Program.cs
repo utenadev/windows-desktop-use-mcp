@@ -112,10 +112,10 @@ public class McpServer {
 
     private object ListTools() {
         return new { 
-            content = new[] { 
+            content = new object[] { 
                 new { 
                     type = "text", 
-                    text = JsonSerializer.Serialize(new[] {
+                    text = JsonSerializer.Serialize(new object[] {
                         new {
                             name = "list_monitors",
                             description = "List all available monitors/displays with their index, name, resolution, and position",
