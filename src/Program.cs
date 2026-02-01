@@ -134,7 +134,10 @@ public class McpServer {
 
         return method switch {
             "list_monitors" => ListMonitors(),
+            "list_windows" => ListWindows(),
             "see" => See(args),
+            "capture_window" => CaptureWindow(args),
+            "capture_region" => CaptureRegion(args),
             "start_watching" => StartWatching(args),
             "stop_watching" => StopWatching(args),
             "tools/list" => ListTools(),
@@ -238,6 +241,42 @@ public class McpServer {
             return new { content = new[] { new { type = "text", text = "Stopped watching" } } };
         } catch (Exception ex) {
             return new { error = $"Failed to stop watching: {ex.Message}" };
+        }
+    }
+
+    private object ListWindows() {
+        try {
+            var windows = _capture.GetWindows();
+            return new { content = new[] { new { type = "text", text = JsonSerializer.Serialize(windows) } } };
+        } catch (Exception ex) {
+            return new { error = $"Failed to list windows: {ex.Message}" };
+        }
+    }
+
+    private object CaptureWindow(JsonElement args) {
+        try {
+            var hwnd = args.TryGetProperty("hwnd", out var h) ? h.GetInt64() : 0L;
+            var qual = args.TryGetProperty("quality", out var q) ? q.GetInt32() : 80;
+            var maxW = args.TryGetProperty("maxWidth", out var w) ? w.GetInt32() : 1920;
+            var data = _capture.CaptureWindow(hwnd, maxW, qual);
+            return new { content = new object[] { new { type = "image", data, mimeType = "image/jpeg" }, new { type = "text", text = $"Captured window {hwnd} at {DateTime.Now:HH:mm:ss}" } } };
+        } catch (Exception ex) {
+            return new { error = $"Failed to capture window: {ex.Message}" };
+        }
+    }
+
+    private object CaptureRegion(JsonElement args) {
+        try {
+            var x = args.TryGetProperty("x", out var xVal) ? xVal.GetInt32() : 0;
+            var y = args.TryGetProperty("y", out var yVal) ? yVal.GetInt32() : 0;
+            var w = args.TryGetProperty("w", out var wVal) ? wVal.GetInt32() : 1920;
+            var h = args.TryGetProperty("h", out var hVal) ? hVal.GetInt32() : 1080;
+            var qual = args.TryGetProperty("quality", out var q) ? q.GetInt32() : 80;
+            var maxW = args.TryGetProperty("maxWidth", out var max) ? max.GetInt32() : 1920;
+            var data = _capture.CaptureRegion(x, y, w, h, maxW, qual);
+            return new { content = new object[] { new { type = "image", data, mimeType = "image/jpeg" }, new { type = "text", text = $"Captured region at ({x}, {y}) size {w}x{h} at {DateTime.Now:HH:mm:ss}" } } };
+        } catch (Exception ex) {
+            return new { error = $"Failed to capture region: {ex.Message}" };
         }
     }
 
