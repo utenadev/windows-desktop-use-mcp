@@ -6,3 +6,23 @@ publish/
 out/
 .vscode/
 .idea/
+
+# Build artifacts
+*.exe
+*.pdb
+*.dll
+*.zip
+*.log
+
+# Temp files
+t/
+Artifacts/
+$null
+*.tmp
+
+# Test files
+*.json
+!settings.json
+!config.json
+!*.csproj
+!*.sln
