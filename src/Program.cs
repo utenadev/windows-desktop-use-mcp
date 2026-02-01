@@ -114,7 +114,7 @@ public class McpServer {
         var qual = args.TryGetProperty("quality", out var q) ? q.GetInt32() : 80;
         var maxW = args.TryGetProperty("maxWidth", out var w) ? w.GetInt32() : 1920;
         var data = _capture.CaptureSingle(mon, maxW, qual);
-        return new { content = new[] { new { type = "image", data, mimeType = "image/jpeg" }, new { type = "text", text = $"Monitor {mon}" } } };
+        return new { content = new object[] { new { type = "image", data, mimeType = "image/jpeg" }, new { type = "text", text = $"Monitor {mon}" } } };
     }
 
     private object StartStream(JsonElement args) {

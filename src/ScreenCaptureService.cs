@@ -66,23 +66,28 @@ public class ScreenCaptureService {
 
     private static List<MonitorInfo> EnumMonitors() {
         var list = new List<MonitorInfo>();
-        uint i = 0;
-        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (h, _, _, _) => {
-            var mi = new MONITORINFOEX { cbSize = Marshal.SizeOf<MONITORINFOEX>() };
-            if (GetMonitorInfo(h, ref mi)) {
-                var w = mi.rcMonitor.Right - mi.rcMonitor.Left;
-                var hgt = mi.rcMonitor.Bottom - mi.rcMonitor.Top;
-                list.Add(new MonitorInfo(i, mi.szDevice, w, hgt, mi.rcMonitor.Left, mi.rcMonitor.Top));
-                i++;
-            }
-            return true;
-        }, IntPtr.Zero);
+        var handle = GCHandle.Alloc(list);
+        try {
+            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, EnumMonCallback, GCHandle.ToIntPtr(handle));
+        } finally {
+            handle.Free();
+        }
         return list;
     }
 
     [DllImport("user32.dll")] static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr rc, EnumMonDelegate del, IntPtr dw);
     [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFOEX lpmi);
     delegate bool EnumMonDelegate(IntPtr h, IntPtr hdc, ref RECT rc, IntPtr d);
+    static bool EnumMonCallback(IntPtr h, IntPtr hdc, ref RECT rc, IntPtr d) {
+        var list = (List<MonitorInfo>)GCHandle.FromIntPtr(d).Target!;
+        var mi = new MONITORINFOEX { cbSize = Marshal.SizeOf<MONITORINFOEX>() };
+        if (GetMonitorInfo(h, ref mi)) {
+            var w = mi.rcMonitor.Right - mi.rcMonitor.Left;
+            var hgt = mi.rcMonitor.Bottom - mi.rcMonitor.Top;
+            list.Add(new MonitorInfo((uint)list.Count, mi.szDevice, w, hgt, mi.rcMonitor.Left, mi.rcMonitor.Top));
+        }
+        return true;
+    }
     [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)] struct MONITORINFOEX { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string szDevice; }
 }
@@ -95,5 +100,5 @@ public class StreamSession {
     public int Quality;
     public int MaxW;
     public CancellationTokenSource Cts = new();
-    public Channel<string> Channel = Channel.CreateUnbounded<string>();
+    public Channel<string> Channel { get; } = Channel.CreateUnbounded<string>();
 }
