@@ -101,35 +101,112 @@ public class McpServer {
         var args = paramsEl.Value.TryGetProperty("arguments", out var a) ? a : default;
 
         return method switch {
-            "list_monitors" => new { content = new[] { new { type = "text", text = JsonSerializer.Serialize(_capture.GetMonitors()) } } },
-            "capture_screen" => Capture(args),
-            "start_capture_stream" => StartStream(args),
-            "stop_capture_stream" => StopStream(args),
+            "list_monitors" => ListMonitors(),
+            "see" => See(args),
+            "start_watching" => StartWatching(args),
+            "stop_watching" => StopWatching(args),
+            "tools/list" => ListTools(),
             _ => new { error = $"Unknown: {method}" }
         };
     }
 
-    private object Capture(JsonElement args) {
-        var mon = args.TryGetProperty("monitor", out var m) ? m.GetUInt32() : 0u;
-        var qual = args.TryGetProperty("quality", out var q) ? q.GetInt32() : 80;
-        var maxW = args.TryGetProperty("maxWidth", out var w) ? w.GetInt32() : 1920;
-        var data = _capture.CaptureSingle(mon, maxW, qual);
-        return new { content = new object[] { new { type = "image", data, mimeType = "image/jpeg" }, new { type = "text", text = $"Monitor {mon}" } } };
+    private object ListTools() {
+        return new { 
+            content = new[] { 
+                new { 
+                    type = "text", 
+                    text = JsonSerializer.Serialize(new[] {
+                        new {
+                            name = "list_monitors",
+                            description = "List all available monitors/displays with their index, name, resolution, and position",
+                            inputSchema = new { type = "object", properties = new { }, required = new string[] { } }
+                        },
+                        new {
+                            name = "see",
+                            description = "Capture a screenshot of the specified monitor (like taking a photo with your eyes). Returns the captured image as base64 JPEG.",
+                            inputSchema = new { 
+                                type = "object", 
+                                properties = new { 
+                                    monitor = new { type = "integer", description = "Monitor index (0=primary, 1=secondary, etc.)", defaultValue = 0, minimum = 0 },
+                                    quality = new { type = "integer", description = "JPEG quality (1-100, higher=better quality but larger size)", defaultValue = 80, minimum = 1, maximum = 100 },
+                                    maxWidth = new { type = "integer", description = "Maximum width in pixels (image will be resized if larger)", defaultValue = 1920, minimum = 100 }
+                                }, 
+                                required = new string[] { } 
+                            }
+                        },
+                        new {
+                            name = "start_watching",
+                            description = "Start a continuous screen capture stream (like watching a live video). Returns a session ID and stream URL.",
+                            inputSchema = new { 
+                                type = "object", 
+                                properties = new { 
+                                    monitor = new { type = "integer", description = "Monitor index to watch", defaultValue = 0, minimum = 0 },
+                                    intervalMs = new { type = "integer", description = "Capture interval in milliseconds (1000=1 second)", defaultValue = 1000, minimum = 100 },
+                                    quality = new { type = "integer", description = "JPEG quality (1-100)", defaultValue = 80, minimum = 1, maximum = 100 },
+                                    maxWidth = new { type = "integer", description = "Maximum width in pixels", defaultValue = 1920, minimum = 100 }
+                                }, 
+                                required = new string[] { } 
+                            }
+                        },
+                        new {
+                            name = "stop_watching",
+                            description = "Stop a running screen capture stream by session ID",
+                            inputSchema = new { 
+                                type = "object", 
+                                properties = new { 
+                                    sessionId = new { type = "string", description = "The session ID returned by start_watching" }
+                                }, 
+                                required = new[] { "sessionId" } 
+                            }
+                        }
+                    })
+                } 
+            } 
+        };
     }
 
-    private object StartStream(JsonElement args) {
-        var mon = args.TryGetProperty("monitor", out var m) ? m.GetUInt32() : 0u;
-        var interval = args.TryGetProperty("intervalMs", out var i) ? i.GetInt32() : 1000;
-        var qual = args.TryGetProperty("quality", out var q) ? q.GetInt32() : 80;
-        var maxW = args.TryGetProperty("maxWidth", out var w) ? w.GetInt32() : 1920;
-        var id = _capture.StartStream(mon, interval, qual, maxW);
-        return new { content = new[] { new { type = "text", text = JsonSerializer.Serialize(new { sessionId = id, streamUrl = $"/stream/{id}" }) } } };
+    private object ListMonitors() {
+        try {
+            var monitors = _capture.GetMonitors();
+            return new { content = new[] { new { type = "text", text = JsonSerializer.Serialize(monitors) } } };
+        } catch (Exception ex) {
+            return new { error = $"Failed to list monitors: {ex.Message}" };
+        }
     }
 
-    private object StopStream(JsonElement args) {
-        var id = args.GetProperty("sessionId").GetString()!;
-        _capture.StopStream(id);
-        return new { content = new[] { new { type = "text", text = "Stopped" } } };
+    private object See(JsonElement args) {
+        try {
+            var mon = args.TryGetProperty("monitor", out var m) ? m.GetUInt32() : 0u;
+            var qual = args.TryGetProperty("quality", out var q) ? q.GetInt32() : 80;
+            var maxW = args.TryGetProperty("maxWidth", out var w) ? w.GetInt32() : 1920;
+            var data = _capture.CaptureSingle(mon, maxW, qual);
+            return new { content = new object[] { new { type = "image", data, mimeType = "image/jpeg" }, new { type = "text", text = $"Captured monitor {mon} at {DateTime.Now:HH:mm:ss}" } } };
+        } catch (Exception ex) {
+            return new { error = $"Failed to capture screen: {ex.Message}" };
+        }
+    }
+
+    private object StartWatching(JsonElement args) {
+        try {
+            var mon = args.TryGetProperty("monitor", out var m) ? m.GetUInt32() : 0u;
+            var interval = args.TryGetProperty("intervalMs", out var i) ? i.GetInt32() : 1000;
+            var qual = args.TryGetProperty("quality", out var q) ? q.GetInt32() : 80;
+            var maxW = args.TryGetProperty("maxWidth", out var w) ? w.GetInt32() : 1920;
+            var id = _capture.StartStream(mon, interval, qual, maxW);
+            return new { content = new[] { new { type = "text", text = JsonSerializer.Serialize(new { sessionId = id, streamUrl = $"/stream/{id}" }) } } };
+        } catch (Exception ex) {
+            return new { error = $"Failed to start watching: {ex.Message}" };
+        }
+    }
+
+    private object StopWatching(JsonElement args) {
+        try {
+            var id = args.GetProperty("sessionId").GetString()!;
+            _capture.StopStream(id);
+            return new { content = new[] { new { type = "text", text = "Stopped watching" } } };
+        } catch (Exception ex) {
+            return new { error = $"Failed to stop watching: {ex.Message}" };
+        }
     }
 
     private async Task SendEvent(HttpResponse r, string evt, object data) {
