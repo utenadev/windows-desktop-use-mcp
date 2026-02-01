@@ -203,7 +203,7 @@ public class StreamableHttpServer
     {
         return new
         {
-            tools = new[]
+            tools = new object[]
             {
                 new {
                     name = "list_monitors",
@@ -233,8 +233,8 @@ public class StreamableHttpServer
         
         return toolName switch
         {
-            "list_monitors" => new { content = new[] { new { type = "text", text = "Monitors listed" } } },
-            "see" => new { content = new[] { new { type = "image", data = "base64data", mimeType = "image/jpeg" } } },
+            "list_monitors" => new { content = new object[] { new { type = "text", text = "Monitors listed" } } },
+            "see" => new { content = new object[] { new { type = "image", data = "base64data", mimeType = "image/jpeg" } } },
             _ => new { error = $"Unknown tool: {toolName}" }
         };
     }
