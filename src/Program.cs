@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Channels;
 
+[DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+
 var ipOption = new Option<string>(
     name: "--ip_addr",
     description: "IP address to bind (0.0.0.0 for WSL2, 127.0.0.1 for local only)",
@@ -25,6 +27,7 @@ rootCmd.AddOption(portOption);
 rootCmd.AddOption(desktopOption);
 
 rootCmd.SetHandler((ip, port, desktop) => {
+    SetProcessDPIAware();
     var builder = WebApplication.CreateBuilder();
     builder.Services.AddSingleton<ScreenCaptureService>(sp => new ScreenCaptureService(desktop));
     builder.WebHost.ConfigureKestrel(options => {

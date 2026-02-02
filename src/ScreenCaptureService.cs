@@ -113,6 +113,10 @@ public class ScreenCaptureService {
     [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
     [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
+    [DllImport("user32.dll")] static extern IntPtr GetWindowDC(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+    [DllImport("gdi32.dll")] static extern bool BitBlt(IntPtr hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, IntPtr hdcSrc, int nXSrc, int nYSrc, int dwRop);
+    const int SRCCOPY = 0x00CC0020;
     
     delegate bool EnumMonDelegate(IntPtr h, IntPtr hdc, ref RECT rc, IntPtr d);
     delegate bool EnumWindowsDelegate(IntPtr hWnd, IntPtr lParam);
@@ -165,13 +169,29 @@ public class ScreenCaptureService {
         if (w <= 0 || h <= 0)
             throw new ArgumentException($"Window {hwnd} has invalid dimensions: {w}x{h}");
             
-        using var bmp = new Bitmap(w, h);
+        using var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(bmp)) {
-            var hdc = g.GetHdc();
+            g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+            
+            var hdcDest = g.GetHdc();
             try {
-                PrintWindow(hWnd, hdc, 0);
+                // Try PW_RENDERFULLCONTENT flag (0x00000002) for GPU app capture
+                // This flag was added in Windows 8.1 to capture full window content including GPU-rendered parts
+                const uint PW_RENDERFULLCONTENT = 0x00000002;
+                bool success = PrintWindow(hWnd, hdcDest, PW_RENDERFULLCONTENT);
+                
+                if (!success) {
+                    // Fallback to standard PrintWindow if PW_RENDERFULLCONTENT fails
+                    success = PrintWindow(hWnd, hdcDest, 0);
+                }
+                
+                if (!success) {
+                    throw new InvalidOperationException($"PrintWindow failed for window {hwnd}");
+                }
             } finally {
-                g.ReleaseHdc(hdc);
+                g.ReleaseHdc(hdcDest);
             }
         }
         return ToJpegBase64(bmp, maxW, quality);
@@ -181,9 +201,12 @@ public class ScreenCaptureService {
         if (w <= 0 || h <= 0)
             throw new ArgumentException($"Invalid region dimensions: {w}x{h}");
             
-        using var bmp = new Bitmap(w, h);
+        using var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(bmp)) {
-            g.CopyFromScreen(x, y, 0, 0, new Size(w, h));
+            g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+            g.CopyFromScreen(x, y, 0, 0, new Size(w, h), CopyPixelOperation.SourceCopy);
         }
         return ToJpegBase64(bmp, maxW, quality);
     }
