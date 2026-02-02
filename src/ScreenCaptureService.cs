@@ -176,17 +176,22 @@ public class ScreenCaptureService {
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
             
             var hdcDest = g.GetHdc();
-            var hdcSrc = GetWindowDC(hWnd);
             try {
-                if (hdcSrc == IntPtr.Zero)
-                    throw new InvalidOperationException($"Failed to get window DC for window {hwnd}");
+                // Try PW_RENDERFULLCONTENT flag (0x00000002) for GPU app capture
+                // This flag was added in Windows 8.1 to capture full window content including GPU-rendered parts
+                const uint PW_RENDERFULLCONTENT = 0x00000002;
+                bool success = PrintWindow(hWnd, hdcDest, PW_RENDERFULLCONTENT);
                 
-                // Use BitBlt instead of PrintWindow for better compatibility
-                BitBlt(hdcDest, 0, 0, w, h, hdcSrc, 0, 0, SRCCOPY);
+                if (!success) {
+                    // Fallback to standard PrintWindow if PW_RENDERFULLCONTENT fails
+                    success = PrintWindow(hWnd, hdcDest, 0);
+                }
+                
+                if (!success) {
+                    throw new InvalidOperationException($"PrintWindow failed for window {hwnd}");
+                }
             } finally {
                 g.ReleaseHdc(hdcDest);
-                if (hdcSrc != IntPtr.Zero)
-                    ReleaseDC(hWnd, hdcSrc);
             }
         }
         return ToJpegBase64(bmp, maxW, quality);
