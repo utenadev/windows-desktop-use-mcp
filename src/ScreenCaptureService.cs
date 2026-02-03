@@ -12,7 +12,7 @@ public class ScreenCaptureService {
 
     public void InitializeMonitors() {
         _monitors = EnumMonitors();
-        Console.WriteLine($"[Capture] Found {_monitors.Count} monitors");
+        Console.Error.WriteLine($"[Capture] Found {_monitors.Count} monitors");
     }
 
     public List<MonitorInfo> GetMonitors() => _monitors;
@@ -43,7 +43,7 @@ public class ScreenCaptureService {
     public bool TryGetSession(string id, out StreamSession? s) => _sessions.TryGetValue(id, out s);
 
     public void StopAllStreams() {
-        Console.WriteLine($"[Capture] Stopping all {_sessions.Count} streams...");
+        Console.Error.WriteLine($"[Capture] Stopping all {_sessions.Count} streams...");
         foreach (var session in _sessions.Values) {
             session.Cts.Cancel();
         }
@@ -58,7 +58,7 @@ public class ScreenCaptureService {
                     var img = CaptureSingle(s.MonIdx, s.MaxW, s.Quality);
                     await s.Channel.Writer.WriteAsync(img, s.Cts.Token);
                 } catch (Exception ex) when (ex is not OperationCanceledException) {
-                    Console.WriteLine($"[Stream {s.Id}] Capture error: {ex.Message}");
+                    Console.Error.WriteLine($"[Stream {s.Id}] Capture error: {ex.Message}");
                     await Task.Delay(1000, s.Cts.Token); // Backoff on error
                     continue;
                 }
@@ -76,10 +76,10 @@ public class ScreenCaptureService {
         } catch (OperationCanceledException) { 
             // Normal cancellation, no action needed
         } catch (Exception ex) {
-            Console.WriteLine($"[Stream {s.Id}] Fatal error: {ex.Message}");
+            Console.Error.WriteLine($"[Stream {s.Id}] Fatal error: {ex.Message}");
         } finally { 
             s.Channel.Writer.Complete();
-            Console.WriteLine($"[Stream {s.Id}] Completed");
+            Console.Error.WriteLine($"[Stream {s.Id}] Completed");
         }
     }
 
