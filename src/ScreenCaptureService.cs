@@ -30,7 +30,15 @@ public class ScreenCaptureService {
 
     public string StartStream(uint idx, int interval, int quality, int maxW) {
         var id = Guid.NewGuid().ToString();
-        var sess = new StreamSession { Id = id, MonIdx = idx, Interval = interval, Quality = quality, MaxW = maxW };
+        var sess = new StreamSession { Id = id, TargetType = "monitor", MonIdx = idx, Interval = interval, Quality = quality, MaxW = maxW };
+        _sessions[id] = sess;
+        _ = StreamLoop(sess);
+        return id;
+    }
+    
+    public string StartWindowStream(long hwnd, int interval, int quality, int maxW) {
+        var id = Guid.NewGuid().ToString();
+        var sess = new StreamSession { Id = id, TargetType = "window", Hwnd = hwnd, Interval = interval, Quality = quality, MaxW = maxW };
         _sessions[id] = sess;
         _ = StreamLoop(sess);
         return id;
@@ -55,7 +63,12 @@ public class ScreenCaptureService {
             while (!s.Cts.Token.IsCancellationRequested) {
                 var start = DateTime.UtcNow;
                 try {
-                    var img = CaptureSingle(s.MonIdx, s.MaxW, s.Quality);
+                    string img;
+                    if (s.TargetType == "window") {
+                        img = CaptureWindow(s.Hwnd, s.MaxW, s.Quality);
+                    } else {
+                        img = CaptureSingle(s.MonIdx, s.MaxW, s.Quality);
+                    }
                     await s.Channel.Writer.WriteAsync(img, s.Cts.Token);
                 } catch (Exception ex) when (ex is not OperationCanceledException) {
                     Console.Error.WriteLine($"[Stream {s.Id}] Capture error: {ex.Message}");
@@ -220,7 +233,9 @@ public record WindowInfo(long Hwnd, string Title, int W, int H, int X, int Y);
 public record MonitorInfo(uint Idx, string Name, int W, int H, int X, int Y);
 public class StreamSession {
     public string Id = "";
+    public string TargetType = "monitor"; // "monitor" or "window"
     public uint MonIdx;
+    public long Hwnd;
     public int Interval;
     public int Quality;
     public int MaxW;

@@ -182,13 +182,15 @@ public class StdioMcpServer {
                 description = "List all visible windows with their handles, titles, and dimensions",
                 inputSchema = new { type = "object", properties = new { }, required = new string[] { } }
             },
-            new {
+new {
                 name = "see",
-                description = "Capture a screenshot of the specified monitor (like taking a photo with your eyes). Returns the captured image as base64 JPEG.",
+                description = "Capture a screenshot of the specified monitor or window (like taking a photo with your eyes). Returns the captured image as base64 JPEG.",
                 inputSchema = new {
                     type = "object",
                     properties = new {
-                        monitor = new { type = "integer", description = "Monitor index (0=primary, 1=secondary, etc.)", defaultValue = 0, minimum = 0 },
+                        targetType = new { type = "string", description = "Target type: 'monitor' or 'window'", defaultValue = "monitor", enum_ = new[] { "monitor", "window" } },
+                        monitor = new { type = "integer", description = "Monitor index (0=primary, 1=secondary, etc.) - used when targetType='monitor'", defaultValue = 0, minimum = 0 },
+                        hwnd = new { type = "integer", description = "Window handle (HWND) - used when targetType='window'" },
                         quality = new { type = "integer", description = "JPEG quality (1-100, higher=better quality but larger size)", defaultValue = 80, minimum = 1, maximum = 100 },
                         maxWidth = new { type = "integer", description = "Maximum width in pixels (image will be resized if larger)", defaultValue = 1920, minimum = 100 }
                     },
@@ -224,13 +226,15 @@ public class StdioMcpServer {
                     required = new[] { "x", "y", "w", "h" }
                 }
             },
-            new {
+new {
                 name = "start_watching",
-                description = "Start a continuous screen capture stream (like watching a live video). Returns a session ID and stream URL.",
+                description = "Start a continuous screen capture stream for a monitor or window (like watching a live video). Returns a session ID and stream URL.",
                 inputSchema = new {
                     type = "object",
                     properties = new {
-                        monitor = new { type = "integer", description = "Monitor index to watch", defaultValue = 0, minimum = 0 },
+                        targetType = new { type = "string", description = "Target type: 'monitor' or 'window'", defaultValue = "monitor", enum_ = new[] { "monitor", "window" } },
+                        monitor = new { type = "integer", description = "Monitor index to watch - used when targetType='monitor'", defaultValue = 0, minimum = 0 },
+                        hwnd = new { type = "integer", description = "Window handle (HWND) to watch - used when targetType='window'" },
                         intervalMs = new { type = "integer", description = "Capture interval in milliseconds (1000=1 second)", defaultValue = 1000, minimum = 100 },
                         quality = new { type = "integer", description = "JPEG quality (1-100)", defaultValue = 80, minimum = 1, maximum = 100 },
                         maxWidth = new { type = "integer", description = "Maximum width in pixels", defaultValue = 1920, minimum = 100 }
@@ -305,13 +309,26 @@ public class StdioMcpServer {
     }
 
     private object HandleSee(JsonElement args) {
-        var mon = args.TryGetProperty("monitor", out var m) ? m.GetUInt32() : 0u;
+        var targetType = args.TryGetProperty("targetType", out var tt) ? tt.GetString() : "monitor";
         var qual = args.TryGetProperty("quality", out var q) ? q.GetInt32() : 80;
         var maxW = args.TryGetProperty("maxWidth", out var w) ? w.GetInt32() : 1920;
-        var data = _capture.CaptureSingle(mon, maxW, qual);
+        
+        string data;
+        string message;
+        
+        if (targetType == "window") {
+            var hwnd = args.TryGetProperty("hwnd", out var h) ? h.GetInt64() : 0L;
+            data = _capture.CaptureWindow(hwnd, maxW, qual);
+            message = $"Captured window {hwnd} at {DateTime.Now:HH:mm:ss}";
+        } else {
+            var mon = args.TryGetProperty("monitor", out var m) ? m.GetUInt32() : 0u;
+            data = _capture.CaptureSingle(mon, maxW, qual);
+            message = $"Captured monitor {mon} at {DateTime.Now:HH:mm:ss}";
+        }
+        
         var content = new object[] {
             new { type = "image", data, mimeType = "image/jpeg" },
-            new { type = "text", text = $"Captured monitor {mon} at {DateTime.Now:HH:mm:ss}" }
+            new { type = "text", text = message }
         };
         return new { content, isError = false };
     }
@@ -344,11 +361,20 @@ public class StdioMcpServer {
     }
 
     private object HandleStartWatching(JsonElement args) {
-        var mon = args.TryGetProperty("monitor", out var m) ? m.GetUInt32() : 0u;
+        var targetType = args.TryGetProperty("targetType", out var tt) ? tt.GetString() : "monitor";
         var interval = args.TryGetProperty("intervalMs", out var i) ? i.GetInt32() : 1000;
         var qual = args.TryGetProperty("quality", out var q) ? q.GetInt32() : 80;
         var maxW = args.TryGetProperty("maxWidth", out var w) ? w.GetInt32() : 1920;
-        var id = _capture.StartStream(mon, interval, qual, maxW);
+        
+        string id;
+        if (targetType == "window") {
+            var hwnd = args.TryGetProperty("hwnd", out var h) ? h.GetInt64() : 0L;
+            id = _capture.StartWindowStream(hwnd, interval, qual, maxW);
+        } else {
+            var mon = args.TryGetProperty("monitor", out var m) ? m.GetUInt32() : 0u;
+            id = _capture.StartStream(mon, interval, qual, maxW);
+        }
+        
         var text = JsonSerializer.Serialize(new { sessionId = id });
         var content = new object[] {
             new { type = "text", text }
