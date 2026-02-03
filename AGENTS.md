@@ -142,5 +142,21 @@ struct RECT { public int Left, Top, Right, Bottom; }
 - **User conversation**: Japanese ( user's preferred language)
 - **Documentation**: English preferred, Japanese allowed for some documents (e.g., `docs/NextOrder.md`)
 
+## Git Operations
+
+**IMPORTANT:** Always obtain explicit user approval before performing any git operations that modify the repository state:
+- `git commit` - Must ask for approval before committing
+- `git push` - Must ask for approval before pushing
+- `git merge` - Must ask for approval before merging
+- `git rebase` - Must ask for approval before rebasing
+- `git reset --hard` - Must ask for approval (destructive operation)
+
+**Allowed without approval:**
+- `git status` - Check repository status
+- `git log` - View commit history
+- `git diff` - View changes
+- `git branch` - List branches
+- `git add` - Stage changes (but do not commit without approval)
+
 ## CI/CD
 GitHub Actions workflow builds and publishes artifacts on push to main/master.
