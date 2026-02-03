@@ -4,6 +4,8 @@ Windows 11 screen capture MCP server with stdio transport as default. Supports o
 
 Last updated: 2026-02-04
 
+Build: Trigger CI
+
 > **⚠️ Implementation Note:** This is the **GDI+ version** which works reliably without Direct3D dependencies. If you need high-performance GPU capture, you must complete the Direct3D/Windows Graphics Capture implementation yourself. This GDI+ version is sufficient for most AI assistant use cases.
 
 ## Requirements
