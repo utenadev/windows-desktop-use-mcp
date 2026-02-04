@@ -5,6 +5,8 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  release:
+    types: [created]
 
 jobs:
   e2e-test:
@@ -24,3 +26,10 @@ jobs:
     
     - name: Run E2E Tests
       run: dotnet test tests/E2ETests/E2ETests.csproj -c Release
+    
+    - name: Upload artifact (release only)
+      if: github.event_name == 'release' && github.event.action == 'created'
+      uses: actions/upload-artifact@v4
+      with:
+        name: WindowsScreenCaptureServer
+        path: src/bin/Release/net8.0-windows/win-x64/WindowsScreenCaptureServer.exe
