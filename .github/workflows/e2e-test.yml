@@ -37,6 +37,7 @@ jobs:
       run: dotnet test tests/E2ETests/E2ETests.csproj -c Release --verbosity normal
     
     - name: List test directory
+      shell: bash
       run: ls -la tests/
     
     - name: Upload artifact (release only)
