@@ -128,4 +128,42 @@ public static class ScreenCaptureTools
         _capture.StopStream(sessionId);
         return "Stopped watching";
     }
+
+    [McpServerTool, Description("Get the latest captured frame from a stream session. Returns image data with hash for change detection.")]
+    public static object GetLatestFrame(
+        [Description("The session ID returned by start_watching")] string sessionId)
+    {
+        if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
+        
+        if (!_capture.TryGetSession(sessionId, out var session) || session == null)
+        {
+            throw new ArgumentException($"Session {sessionId} not found");
+        }
+        
+        var latestFrame = session.LatestFrame;
+        var hash = session.LastFrameHash;
+        var captureTime = session.LastCaptureTime;
+        
+        if (string.IsNullOrEmpty(latestFrame))
+        {
+            return new Dictionary<string, object?>
+            {
+                ["sessionId"] = sessionId,
+                ["hasFrame"] = false,
+                ["message"] = "No frame captured yet"
+            };
+        }
+        
+        return new Dictionary<string, object?>
+        {
+            ["sessionId"] = sessionId,
+            ["hasFrame"] = true,
+            ["image"] = latestFrame,
+            ["hash"] = hash,
+            ["captureTime"] = captureTime.ToString("O"),
+            ["targetType"] = session.TargetType,
+            ["monIdx"] = session.MonIdx,
+            ["hwnd"] = session.Hwnd
+        };
+    }
 }

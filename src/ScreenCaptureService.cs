@@ -74,6 +74,10 @@ public class ScreenCaptureService {
                     }
                     await s.Channel.Writer.WriteAsync(img, s.Cts.Token);
                     
+                    // Cache the latest frame
+                    s.LatestFrame = img;
+                    s.LastCaptureTime = DateTime.UtcNow;
+                    
                     // Send notification to MCP client with captured frame
                     if (OnFrameCaptured != null) {
                         try {
@@ -253,6 +257,34 @@ public class StreamSession {
     public int MaxW;
     public CancellationTokenSource Cts = new();
     public Channel<string> Channel { get; }
+    
+    // Cache for latest captured frame
+    private string _latestFrame = "";
+    private readonly object _frameLock = new();
+    
+    public string LatestFrame {
+        get {
+            lock (_frameLock) {
+                return _latestFrame;
+            }
+        }
+        set {
+            lock (_frameLock) {
+                _latestFrame = value;
+                LastFrameHash = ComputeHash(value);
+            }
+        }
+    }
+    
+    public string LastFrameHash { get; private set; } = "";
+    public DateTime LastCaptureTime { get; set; }
+    
+    private static string ComputeHash(string data) {
+        if (string.IsNullOrEmpty(data)) return "";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(data);
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(hash)[..16]; // First 16 chars for brevity
+    }
     
     public StreamSession() {
         Channel = System.Threading.Channels.Channel.CreateUnbounded<string>();
