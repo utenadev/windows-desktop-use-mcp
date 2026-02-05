@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -88,6 +90,7 @@ public static class ScreenCaptureTools
 
     [McpServerTool, Description("Start a continuous screen capture stream for a monitor or window (like watching a live video). Returns a session ID.")]
     public static string StartWatching(
+        McpServer server,
         [Description("Target type: 'monitor' or 'window'")] string targetType = "monitor",
         [Description("Monitor index to watch - used when targetType='monitor'")] uint monitor = 0,
         [Description("Window handle (HWND) to watch - used when targetType='window'")] long? hwnd = null,
@@ -96,6 +99,19 @@ public static class ScreenCaptureTools
         [Description("Maximum width in pixels")] int maxWidth = 1920)
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
+        
+        // Setup notification callback for frame streaming
+        _capture.OnFrameCaptured = async (sessionId, imageData) => {
+            var notificationData = new Dictionary<string, object?> {
+                ["level"] = "info",
+                ["data"] = new Dictionary<string, string> {
+                    ["sessionId"] = sessionId,
+                    ["image"] = imageData,
+                    ["type"] = "frame"
+                }
+            };
+            await server.SendNotificationAsync("notifications/message", notificationData);
+        };
         
         if (targetType == "window" && hwnd.HasValue)
         {

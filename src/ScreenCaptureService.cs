@@ -7,6 +7,9 @@ public class ScreenCaptureService {
     private readonly uint _defaultMon;
     private readonly Dictionary<string, StreamSession> _sessions = new();
     private List<MonitorInfo> _monitors = new();
+    
+    // Callback for sending frame notifications to MCP client
+    public Func<string, string, Task>? OnFrameCaptured { get; set; }
 
     public ScreenCaptureService(uint defaultMon) => _defaultMon = defaultMon;
 
@@ -70,6 +73,15 @@ public class ScreenCaptureService {
                         img = CaptureSingle(s.MonIdx, s.MaxW, s.Quality);
                     }
                     await s.Channel.Writer.WriteAsync(img, s.Cts.Token);
+                    
+                    // Send notification to MCP client with captured frame
+                    if (OnFrameCaptured != null) {
+                        try {
+                            await OnFrameCaptured(s.Id, img);
+                        } catch (Exception ex) {
+                            Console.Error.WriteLine($"[Stream {s.Id}] Failed to send notification: {ex.Message}");
+                        }
+                    }
                 } catch (Exception ex) when (ex is not OperationCanceledException) {
                     Console.Error.WriteLine($"[Stream {s.Id}] Capture error: {ex.Message}");
                     await Task.Delay(1000, s.Cts.Token); // Backoff on error
