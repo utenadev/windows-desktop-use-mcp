@@ -10,17 +10,20 @@ public class McpE2ETests
     
     private static string GetServerPath()
     {
-        // Try to find server executable relative to test assembly
-        var testAssemblyDir = Path.GetDirectoryName(typeof(McpE2ETests).Assembly.Location)!;
-        var repoRoot = Path.GetFullPath(Path.Combine(testAssemblyDir, "..", "..", "..", ".."));
+        // Use GITHUB_WORKSPACE if available (GitHub Actions environment)
+        var githubWorkspace = Environment.GetEnvironmentVariable("GITHUB_WORKSPACE");
+        var repoRoot = !string.IsNullOrEmpty(githubWorkspace) 
+            ? githubWorkspace 
+            : GetRepoRootFromAssembly();
         
         // Check multiple possible locations
         var possiblePaths = new[]
         {
+            // GitHub Actions build paths
             Path.Combine(repoRoot, "src", "bin", "Release", "net8.0-windows", "win-x64", "WindowsScreenCaptureServer.exe"),
             Path.Combine(repoRoot, "src", "bin", "Debug", "net8.0-windows", "win-x64", "WindowsScreenCaptureServer.exe"),
-            Path.Combine(testAssemblyDir, "..", "..", "..", "src", "bin", "Release", "net8.0-windows", "win-x64", "WindowsScreenCaptureServer.exe"),
-            @"C:\workspace\mcp-windows-screen-capture\src\bin\Release\net8.0-windows\win-x64\WindowsScreenCaptureServer.exe" // Fallback for local dev
+            // Local development fallback
+            @"C:\workspace\mcp-windows-screen-capture\src\bin\Release\net8.0-windows\win-x64\WindowsScreenCaptureServer.exe"
         };
         
         foreach (var path in possiblePaths)
@@ -32,7 +35,14 @@ public class McpE2ETests
             }
         }
         
-        throw new FileNotFoundException("WindowsScreenCaptureServer.exe not found. Please build the project first.");
+        throw new FileNotFoundException($"WindowsScreenCaptureServer.exe not found. Checked paths:\n{string.Join("\n", possiblePaths.Select(p => Path.GetFullPath(p)))}\n\nPlease build the project first.");
+    }
+    
+    private static string GetRepoRootFromAssembly()
+    {
+        var testAssemblyDir = Path.GetDirectoryName(typeof(McpE2ETests).Assembly.Location)!;
+        // Go up from tests/E2ETests/bin/Debug/net8.0 to repo root
+        return Path.GetFullPath(Path.Combine(testAssemblyDir, "..", "..", "..", ".."));
     }
 
     [Test]
