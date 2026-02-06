@@ -5,6 +5,40 @@ using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
+// Data models for unified tools
+public record CaptureTarget(
+    string Type,
+    string Id,
+    string Name,
+    int Width,
+    int Height,
+    int X,
+    int Y
+);
+
+public record CaptureTargets(
+    List<CaptureTarget> Monitors,
+    List<CaptureTarget> Windows,
+    int TotalCount
+);
+
+public record CaptureResult(
+    string ImageData,
+    string MimeType,
+    int Width,
+    int Height,
+    string TargetType,
+    string TargetId
+);
+
+public record WatchSession(
+    string SessionId,
+    string TargetType,
+    string TargetId,
+    int IntervalMs,
+    string Status
+);
+
 [McpServerToolType]
 public static class ScreenCaptureTools
 {
@@ -165,5 +199,176 @@ public static class ScreenCaptureTools
             ["monIdx"] = session.MonIdx,
             ["hwnd"] = session.Hwnd
         };
+    }
+
+    // ============ NEW UNIFIED TOOLS ============
+
+    [McpServerTool, Description("List all available capture targets (monitors and windows) with unified interface")]
+    public static CaptureTargets ListAll(
+        [Description("Filter: 'all', 'monitors', 'windows'")] string filter = "all")
+    {
+        if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
+        
+        var monitors = new List<CaptureTarget>();
+        var windows = new List<CaptureTarget>();
+        
+        if (filter == "all" || filter == "monitors")
+        {
+            var monitorList = _capture.GetMonitors();
+            monitors = monitorList.Select(m => new CaptureTarget(
+                "monitor",
+                m.Idx.ToString(),
+                m.Name,
+                m.W,
+                m.H,
+                m.X,
+                m.Y
+            )).ToList();
+        }
+        
+        if (filter == "all" || filter == "windows")
+        {
+            var windowList = _capture.GetWindows();
+            windows = windowList.Select(w => new CaptureTarget(
+                "window",
+                w.Hwnd.ToString(),
+                w.Title,
+                w.W,
+                w.H,
+                w.X,
+                w.Y
+            )).ToList();
+        }
+        
+        return new CaptureTargets(monitors, windows, monitors.Count + windows.Count);
+    }
+
+    [McpServerTool, Description("Capture screen, window, or region as image")]
+    public static CaptureResult Capture(
+        [Description("Target type: 'monitor', 'window', 'region', 'primary' (default monitor)")] string target = "primary",
+        [Description("Target identifier: monitor index, hwnd, or 'primary' (default)")] string? targetId = null,
+        [Description("X coordinate for region capture")] int? x = null,
+        [Description("Y coordinate for region capture")] int? y = null,
+        [Description("Width for region capture")] int? w = null,
+        [Description("Height for region capture")] int? h = null,
+        [Description("JPEG quality (1-100)")] int quality = 80,
+        [Description("Maximum width in pixels")] int maxWidth = 1920)
+    {
+        if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
+        
+        string imageData;
+        string actualTargetType = target;
+        string actualTargetId = targetId ?? "0";
+        int capturedWidth = 0;
+        int capturedHeight = 0;
+        
+        switch (target.ToLower())
+        {
+            case "primary":
+                imageData = _capture.CaptureSingle(0, maxWidth, quality);
+                actualTargetType = "monitor";
+                actualTargetId = "0";
+                break;
+                
+            case "monitor":
+                if (!uint.TryParse(targetId ?? "0", out var monitorIdx))
+                    throw new ArgumentException("Invalid monitor index");
+                imageData = _capture.CaptureSingle(monitorIdx, maxWidth, quality);
+                capturedWidth = maxWidth;
+                break;
+                
+            case "window":
+                if (!long.TryParse(targetId, out var hwnd))
+                    throw new ArgumentException("Invalid window handle (hwnd)");
+                imageData = _capture.CaptureWindow(hwnd, maxWidth, quality);
+                actualTargetType = "window";
+                actualTargetId = hwnd.ToString();
+                break;
+                
+            case "region":
+                if (!x.HasValue || !y.HasValue || !w.HasValue || !h.HasValue)
+                    throw new ArgumentException("Region capture requires x, y, w, h parameters");
+                imageData = _capture.CaptureRegion(x.Value, y.Value, w.Value, h.Value, maxWidth, quality);
+                actualTargetType = "region";
+                actualTargetId = $"{x.Value},{y.Value},{w.Value},{h.Value}";
+                capturedWidth = w.Value;
+                capturedHeight = h.Value;
+                break;
+                
+            default:
+                throw new ArgumentException($"Unknown target type: {target}");
+        }
+        
+        var base64Data = imageData.Contains(";base64,") ? imageData.Split(';')[1].Split(',')[1] : imageData;
+        
+        return new CaptureResult(
+            base64Data,
+            "image/jpeg",
+            capturedWidth,
+            capturedHeight,
+            actualTargetType,
+            actualTargetId
+        );
+    }
+
+    [McpServerTool, Description("Start watching/streaming a target (monitor, window, or region)")]
+    public static WatchSession Watch(
+        McpServer server,
+        [Description("Target type: 'monitor', 'window', 'region'")] string target = "monitor",
+        [Description("Target identifier: monitor index, hwnd, or region coordinates (x,y,w,h)")] string? targetId = null,
+        [Description("Capture interval in milliseconds (minimum 100ms)")] int intervalMs = 1000,
+        [Description("JPEG quality (1-100)")] int quality = 80,
+        [Description("Maximum width in pixels")] int maxWidth = 1920)
+    {
+        if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
+        if (intervalMs < 100)
+            throw new ArgumentException("Interval must be at least 100ms");
+        
+        // Setup notification callback for frame streaming
+        _capture.OnFrameCaptured = async (sessionId, imageData) => {
+            var notificationData = new Dictionary<string, object?> {
+                ["level"] = "info",
+                ["data"] = new Dictionary<string, string> {
+                    ["sessionId"] = sessionId,
+                    ["image"] = imageData,
+                    ["type"] = "frame"
+                }
+            };
+            await server.SendNotificationAsync("notifications/message", notificationData);
+        };
+        
+        string sessionId;
+        string actualTargetId = targetId ?? "0";
+        
+        switch (target.ToLower())
+        {
+            case "monitor":
+                if (!uint.TryParse(targetId ?? "0", out var monitorIdx))
+                    throw new ArgumentException("Invalid monitor index");
+                sessionId = _capture.StartStream(monitorIdx, intervalMs, quality, maxWidth);
+                actualTargetId = monitorIdx.ToString();
+                break;
+                
+            case "window":
+                if (!long.TryParse(targetId, out var hwnd))
+                    throw new ArgumentException("Invalid window handle (hwnd)");
+                sessionId = _capture.StartWindowStream(hwnd, intervalMs, quality, maxWidth);
+                actualTargetId = hwnd.ToString();
+                break;
+                
+            default:
+                throw new ArgumentException($"Target type '{target}' not yet supported for watching");
+        }
+        
+        return new WatchSession(sessionId, target, actualTargetId, intervalMs, "active");
+    }
+
+    [McpServerTool, Description("Stop watching a capture session")]
+    public static string StopWatch(
+        [Description("The session ID returned by watch")] string sessionId)
+    {
+        if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
+        _capture.StopStream(sessionId);
+        return $"Stopped watching session {sessionId}";
     }
 }

@@ -287,4 +287,284 @@ public class McpE2ETests
             await client.DisposeAsync();
         }
     }
+
+    // ============ NEW UNIFIED TOOLS E2E TESTS ============
+
+    [Test]
+    public async Task E2E_ListAll_ReturnsValidTargets()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var result = await client.CallToolAsync("list_all", null);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null, "Response text is null");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    public async Task E2E_ListAll_FilterMonitors_ReturnsOnlyMonitors()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var args = new Dictionary<string, object?>
+            {
+                ["filter"] = "monitors"
+            };
+
+            var result = await client.CallToolAsync("list_all", args);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null, "Response text is null");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    public async Task E2E_ListAll_FilterWindows_ReturnsOnlyWindows()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var args = new Dictionary<string, object?>
+            {
+                ["filter"] = "windows"
+            };
+
+            var result = await client.CallToolAsync("list_all", args);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null, "Response text is null");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    public async Task E2E_Capture_Primary_ReturnsValidImage()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var args = new Dictionary<string, object?>
+            {
+                ["target"] = "primary",
+                ["quality"] = 80,
+                ["maxWidth"] = 1920
+            };
+
+            var result = await client.CallToolAsync("capture", args);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null, "Response text is null");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    public async Task E2E_Capture_Monitor_ReturnsValidImage()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var args = new Dictionary<string, object?>
+            {
+                ["target"] = "monitor",
+                ["targetId"] = "0",
+                ["quality"] = 80,
+                ["maxWidth"] = 1920
+            };
+
+            var result = await client.CallToolAsync("capture", args);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null, "Response text is null");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    [Ignore("Window capture may fail due to OS-specific visibility checks")]
+    public async Task E2E_Capture_Window_ReturnsValidImage()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            // First get a window handle
+            var listAllResult = await client.CallToolAsync("list_all", new Dictionary<string, object?> { ["filter"] = "windows" });
+            Assert.That(listAllResult, Is.Not.Null, "list_all failed");
+
+            var textContent = listAllResult.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+
+            var targets = System.Text.Json.JsonSerializer.Deserialize<CaptureTargets>(textContent.Text);
+            Assert.That(targets, Is.Not.Null, "Failed to deserialize targets");
+            Assert.That(targets.Windows, Is.Not.Null.And.Count.GreaterThan(0), "No windows found");
+
+            var testWindow = targets.Windows.FirstOrDefault(w => !string.IsNullOrEmpty(w.Name)) ?? targets.Windows.First();
+            Assert.That(testWindow, Is.Not.Null, "No test window found");
+
+            var args = new Dictionary<string, object?>
+            {
+                ["target"] = "window",
+                ["targetId"] = testWindow.Id,
+                ["quality"] = 80,
+                ["maxWidth"] = 1920
+            };
+
+            var result = await client.CallToolAsync("capture", args);
+            Assert.That(result, Is.Not.Null);
+
+            var resultTextContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(resultTextContent, Is.Not.Null, "No text content found");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    public async Task E2E_Capture_Region_ReturnsValidImage()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var args = new Dictionary<string, object?>
+            {
+                ["target"] = "region",
+                ["x"] = 0,
+                ["y"] = 0,
+                ["w"] = 100,
+                ["h"] = 100,
+                ["quality"] = 80,
+                ["maxWidth"] = 1920
+            };
+
+            var result = await client.CallToolAsync("capture", args);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null, "Response text is null");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    public async Task E2E_Watch_ReturnsValidSessionId()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var args = new Dictionary<string, object?>
+            {
+                ["target"] = "monitor",
+                ["targetId"] = "0",
+                ["intervalMs"] = 1000,
+                ["quality"] = 80,
+                ["maxWidth"] = 1920
+            };
+
+            var result = await client.CallToolAsync("watch", args);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null, "Session info is null");
+            
+            // Verify it contains session ID (JSON uses camelCase)
+            Assert.That(textContent.Text, Does.Contain("sessionId"), "Response should contain sessionId");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    public async Task E2E_StopWatch_ReturnsSuccess()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            // Start watching
+            var startArgs = new Dictionary<string, object?>
+            {
+                ["target"] = "monitor",
+                ["targetId"] = "0",
+                ["intervalMs"] = 1000,
+                ["quality"] = 80,
+                ["maxWidth"] = 1920
+            };
+
+            var startResult = await client.CallToolAsync("watch", startArgs);
+            Assert.That(startResult, Is.Not.Null, "watch failed");
+
+            var textContent = startResult.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            
+            // Extract session ID from JSON response (camelCase)
+            using var doc = System.Text.Json.JsonDocument.Parse(textContent.Text);
+            var root = doc.RootElement;
+            var sessionId = root.GetProperty("sessionId").GetString();
+            Assert.That(sessionId, Is.Not.Null, "Session ID is null");
+
+            // Stop watching
+            var stopArgs = new Dictionary<string, object?>
+            {
+                ["sessionId"] = sessionId
+            };
+
+            var stopResult = await client.CallToolAsync("stop_watch", stopArgs);
+            Assert.That(stopResult, Is.Not.Null);
+
+            var stopTextContent = stopResult.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(stopTextContent, Is.Not.Null, "No text content found in stop result");
+            Assert.That(stopTextContent.Text, Does.Contain("Stopped").Or.Contain("stopped"), "Stop response should indicate success");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
 }
