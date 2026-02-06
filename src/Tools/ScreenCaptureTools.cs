@@ -427,4 +427,146 @@ public static class ScreenCaptureTools
 
         return _audioCapture.GetActiveSessions();
     }
+
+    // ============ WHISPER SPEECH RECOGNITION TOOLS ============
+
+    private static WhisperTranscriptionService? _whisperService;
+
+    public static void SetWhisperService(WhisperTranscriptionService whisperService) => _whisperService = whisperService;
+
+    [McpServerTool, Description("Transcribe audio to text using Whisper AI")]
+    public static TranscriptionResult Listen(
+        [Description("Audio source: 'microphone', 'system', 'file', 'audio_session'")] string source = "system",
+        [Description("For 'file': path to audio file. For 'audio_session': session ID from start_audio_capture")] string? sourceId = null,
+        [Description("Language code (auto=auto-detect, ja=Japanese, en=English, etc.)")] string language = "auto",
+        [Description("Recording duration in seconds (for 'microphone' or 'system' sources)")] int duration = 10,
+        [Description("Model size: 'tiny', 'base', 'small', 'medium', 'large'")] string modelSize = "base",
+        [Description("Translate to English")] bool translate = false)
+    {
+        if (_whisperService == null)
+        {
+            Console.Error.WriteLine("[Listen] ERROR: WhisperTranscriptionService is null!");
+            throw new InvalidOperationException("WhisperTranscriptionService not initialized");
+        }
+
+        // Parse model size
+        if (!Enum.TryParse<WhisperModelSize>(modelSize, true, out var modelSizeEnum))
+        {
+            throw new ArgumentException($"Invalid model size: {modelSize}. Use 'tiny', 'base', 'small', 'medium', or 'large'.");
+        }
+
+        string? audioFilePath = null;
+        bool shouldCleanup = false;
+
+        try
+        {
+            switch (source.ToLower())
+            {
+                case "file":
+                    if (string.IsNullOrEmpty(sourceId))
+                    {
+                        throw new ArgumentException("sourceId is required when source='file'");
+                    }
+                    audioFilePath = sourceId;
+                    if (!File.Exists(audioFilePath))
+                    {
+                        throw new FileNotFoundException($"Audio file not found: {audioFilePath}");
+                    }
+                    break;
+
+                case "audio_session":
+                    if (_audioCapture == null)
+                    {
+                        throw new InvalidOperationException("AudioCaptureService not initialized");
+                    }
+                    if (string.IsNullOrEmpty(sourceId))
+                    {
+                        throw new ArgumentException("sourceId (session ID) is required when source='audio_session'");
+                    }
+                    var audioResult = _audioCapture.StopCapture(sourceId, false);
+                    audioFilePath = Path.Combine(Path.GetTempPath(), $"whisper_temp_{Guid.NewGuid()}.wav");
+                    File.WriteAllBytes(audioFilePath, Convert.FromBase64String(audioResult.AudioDataBase64));
+                    shouldCleanup = true;
+                    break;
+
+                case "microphone":
+                case "system":
+                    // Record audio first
+                    if (_audioCapture == null)
+                    {
+                        _audioCapture = new AudioCaptureService();
+                    }
+                    var captureSource = source.ToLower() == "microphone" ? AudioCaptureSource.Microphone : AudioCaptureSource.System;
+                    var session = _audioCapture.StartCapture(captureSource, 16000);
+                    
+                    Console.WriteLine($"[Listen] Recording {source} audio for {duration} seconds...");
+                    Thread.Sleep(TimeSpan.FromSeconds(duration));
+                    
+                    var capturedAudio = _audioCapture.StopCapture(session.SessionId, false);
+                    // Use the original WAV file path directly
+                    audioFilePath = capturedAudio.OutputPath;
+                    if (string.IsNullOrEmpty(audioFilePath) || !File.Exists(audioFilePath))
+                    {
+                        throw new InvalidOperationException("Audio file not found after capture");
+                    }
+                    shouldCleanup = false; // Don't delete the original file, let AudioCaptureService handle it
+                    break;
+
+                default:
+                    throw new ArgumentException($"Unknown source: {source}. Use 'microphone', 'system', 'file', or 'audio_session'.");
+            }
+
+            // Transcribe
+            Console.WriteLine($"[Listen] Transcribing with {modelSize} model...");
+            var langCode = language == "auto" ? null : language;
+            
+            // Run transcription synchronously
+            var result = _whisperService.TranscribeFileAsync(
+                audioFilePath, 
+                langCode, 
+                modelSizeEnum, 
+                translate).GetAwaiter().GetResult();
+            
+            Console.WriteLine($"[Listen] Transcription complete: {result.Segments.Count} segments");
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Listen] ERROR: {ex.GetType().Name}: {ex.Message}");
+            Console.Error.WriteLine($"[Listen] Stack trace: {ex.StackTrace}");
+            throw;
+        }
+        finally
+        {
+            // Cleanup temp file if we created it
+            if (shouldCleanup && audioFilePath != null && File.Exists(audioFilePath))
+            {
+                try
+                {
+                    File.Delete(audioFilePath);
+                }
+                catch { }
+            }
+        }
+    }
+
+    [McpServerTool, Description("Get available Whisper model information")]
+    public static Dictionary<string, object> GetWhisperModelInfo()
+    {
+        var models = WhisperTranscriptionService.GetModelInfo();
+        var result = new Dictionary<string, object>();
+        
+        foreach (var kvp in models)
+        {
+            result[kvp.Key.ToString().ToLower()] = new
+            {
+                size = kvp.Value.Size,
+                performance = kvp.Value.Performance,
+                bestFor = kvp.Value.BestFor
+            };
+        }
+        
+        return result;
+    }
 }
