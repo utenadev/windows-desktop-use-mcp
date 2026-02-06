@@ -371,4 +371,60 @@ public static class ScreenCaptureTools
         _capture.StopStream(sessionId);
         return $"Stopped watching session {sessionId}";
     }
+
+    // ============ AUDIO CAPTURE TOOLS ============
+
+    private static AudioCaptureService? _audioCapture;
+
+    public static void SetAudioCaptureService(AudioCaptureService audioCapture) => _audioCapture = audioCapture;
+
+    [McpServerTool, Description("List available audio capture devices (microphones and system audio)")]
+    public static List<AudioDeviceInfo> ListAudioDevices()
+    {
+        return AudioCaptureService.GetAudioDevices();
+    }
+
+    [McpServerTool, Description("Start audio capture from system or microphone")]
+    public static AudioSession StartAudioCapture(
+        [Description("Source: 'system', 'microphone', 'both'")] string source = "system",
+        [Description("Sample rate: 16000, 44100, 48000")] int sampleRate = 44100,
+        [Description("Microphone device index (when source='microphone' or 'both')")] int deviceIndex = 0)
+    {
+        if (_audioCapture == null)
+        {
+            _audioCapture = new AudioCaptureService();
+        }
+
+        if (!Enum.TryParse<AudioCaptureSource>(source, true, out var sourceEnum))
+        {
+            throw new ArgumentException($"Invalid audio source: {source}. Use 'system', 'microphone', or 'both'.");
+        }
+
+        return _audioCapture.StartCapture(sourceEnum, sampleRate, deviceIndex);
+    }
+
+    [McpServerTool, Description("Stop audio capture and return captured audio data")]
+    public static AudioCaptureResult StopAudioCapture(
+        [Description("The session ID returned by start_audio_capture")] string sessionId,
+        [Description("Return format: 'base64', 'file_path'")] string returnFormat = "base64")
+    {
+        if (_audioCapture == null)
+        {
+            throw new InvalidOperationException("AudioCaptureService not initialized");
+        }
+
+        var result = _audioCapture.StopCapture(sessionId, returnFormat == "base64");
+        return result;
+    }
+
+    [McpServerTool, Description("Get list of active audio capture sessions")]
+    public static List<AudioSession> GetActiveAudioSessions()
+    {
+        if (_audioCapture == null)
+        {
+            return new List<AudioSession>();
+        }
+
+        return _audioCapture.GetActiveSessions();
+    }
 }

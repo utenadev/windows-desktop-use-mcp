@@ -567,4 +567,200 @@ public class McpE2ETests
             await client.DisposeAsync();
         }
     }
+
+    // ============ AUDIO CAPTURE E2E TESTS ============
+
+    [Test]
+    public async Task E2E_ListAudioDevices_ReturnsDevices()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var result = await client.CallToolAsync("list_audio_devices", null);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null, "Response text is null");
+            
+            // Verify response contains device information
+            Assert.That(textContent.Text, Does.Contain("Index").Or.Contain("index"), 
+                "Response should contain device index");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    [Explicit("Requires YouTube or audio playing in background")]
+    [Description("IMPORTANT: Before running this test, play audio on YouTube or any media player!" +
+                 "\nSet KEEP_AUDIO_FILE=true environment variable to preserve the WAV file for manual verification.")]
+    public async Task E2E_CaptureSystemAudio_WithYouTubePlaying_SavesWavFile()
+    {
+        // Check if we should keep the audio file for manual verification
+        // Usage: $env:KEEP_AUDIO_FILE="true"; dotnet test --filter "E2E_CaptureSystemAudio_WithYouTubePlaying_SavesWavFile"
+        bool keepAudioFile = Environment.GetEnvironmentVariable("KEEP_AUDIO_FILE")?.ToLower() == "true";
+        
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+        string? outputPath = null;
+
+        try
+        {
+            Console.WriteLine("\n" + new string('=', 60));
+            Console.WriteLine("AUDIO CAPTURE TEST");
+            Console.WriteLine(new string('=', 60));
+            Console.WriteLine("Please play audio on YouTube or media player now!");
+            Console.WriteLine("Test will start in 5 seconds...");
+            if (keepAudioFile)
+            {
+                Console.WriteLine("[INFO] KEEP_AUDIO_FILE=true - WAV file will NOT be deleted after test");
+            }
+            Console.WriteLine(new string('=', 60) + "\n");
+            
+            await Task.Delay(5000);
+
+            // Start system audio capture
+            var startArgs = new Dictionary<string, object?>
+            {
+                ["source"] = "system",
+                ["sampleRate"] = 44100
+            };
+
+            var startResult = await client.CallToolAsync("start_audio_capture", startArgs);
+            Assert.That(startResult, Is.Not.Null, "start_audio_capture failed");
+
+            var textContent = startResult.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            
+            // Parse session info
+            using var doc = System.Text.Json.JsonDocument.Parse(textContent.Text);
+            var root = doc.RootElement;
+            var sessionId = root.GetProperty("sessionId").GetString();
+            Assert.That(sessionId, Is.Not.Null.And.Not.Empty, "Session ID is null");
+            
+            Console.WriteLine($"Started audio capture session: {sessionId}");
+            Console.WriteLine("Recording for 5 seconds... Please ensure audio is playing!");
+
+            // Record for 5 seconds
+            await Task.Delay(5000);
+
+            // Stop capture and get audio data
+            var stopArgs = new Dictionary<string, object?>
+            {
+                ["sessionId"] = sessionId,
+                ["returnFormat"] = "base64"
+            };
+
+            var stopResult = await client.CallToolAsync("stop_audio_capture", stopArgs);
+            Assert.That(stopResult, Is.Not.Null, "stop_audio_capture failed");
+
+            var stopTextContent = stopResult.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(stopTextContent, Is.Not.Null, "No text content in stop result");
+            
+            // Parse result
+            using var stopDoc = System.Text.Json.JsonDocument.Parse(stopTextContent.Text);
+            var stopRoot = stopDoc.RootElement;
+            
+            // Get base64 audio data
+            string? audioBase64 = null;
+            if (stopRoot.TryGetProperty("audioDataBase64", out var audioDataElement))
+            {
+                audioBase64 = audioDataElement.GetString();
+            }
+            
+            Assert.That(audioBase64, Is.Not.Null.And.Not.Empty, "Audio data is null");
+            
+            // Save to file for verification
+            outputPath = Path.Combine(Path.GetTempPath(), $"test_capture_{sessionId}.wav");
+            var audioBytes = Convert.FromBase64String(audioBase64);
+            await File.WriteAllBytesAsync(outputPath, audioBytes);
+            
+            // Verify file was created
+            Assert.That(File.Exists(outputPath), Is.True, $"Audio file not found: {outputPath}");
+            
+            // Verify file size (should be > 44 bytes for valid WAV header + some data)
+            var fileInfo = new FileInfo(outputPath);
+            Assert.That(fileInfo.Length, Is.GreaterThan(1000), 
+                $"Audio file too small ({fileInfo.Length} bytes). Is audio playing?");
+            
+            // Verify it's a valid WAV file (RIFF header)
+            using var fs = File.OpenRead(outputPath);
+            var header = new byte[Math.Min(44, (int)fileInfo.Length)];
+            fs.Read(header, 0, header.Length);
+            
+            // Log header for debugging
+            var headerHex = BitConverter.ToString(header.Take(16).ToArray());
+            Console.WriteLine($"   File header (hex): {headerHex}");
+            
+            // Check RIFF header
+            var riffHeader = System.Text.Encoding.ASCII.GetString(header, 0, 4);
+            Assert.That(riffHeader, Is.EqualTo("RIFF"), 
+                $"File does not have valid WAV RIFF header. Header: {riffHeader}");
+            
+            // Check WAVE format
+            var waveHeader = System.Text.Encoding.ASCII.GetString(header, 8, 4);
+            Assert.That(waveHeader, Is.EqualTo("WAVE"), 
+                $"File is not a valid WAVE file. Format: {waveHeader}");
+            
+            Console.WriteLine($"\n✅ SUCCESS! Audio captured successfully:");
+            Console.WriteLine($"   File: {outputPath}");
+            Console.WriteLine($"   Size: {fileInfo.Length:N0} bytes");
+            Console.WriteLine($"   Duration: ~5 seconds");
+            
+            if (keepAudioFile)
+            {
+                Console.WriteLine($"\n💾 AUDIO FILE PRESERVED for manual verification:");
+                Console.WriteLine($"   {outputPath}");
+                Console.WriteLine($"\nTo play the file:");
+                Console.WriteLine($"   Windows Media Player: start \"{outputPath}\"");
+                Console.WriteLine($"   PowerShell: Start-Process \"{outputPath}\"");
+                Console.WriteLine($"\nTo clean up manually:");
+                Console.WriteLine($"   Remove-Item \"{outputPath}\"");
+            }
+            else
+            {
+                Console.WriteLine($"\nYou can play the file to verify it contains the audio!");
+            }
+        }
+        finally
+        {
+            await client.DisposeAsync();
+            
+            // Cleanup: delete the test file only if not preserving
+            if (!keepAudioFile && outputPath != null && File.Exists(outputPath))
+            {
+                try
+                {
+                    File.Delete(outputPath);
+                    Console.WriteLine($"\nCleaned up: {outputPath}");
+                }
+                catch { }
+            }
+        }
+    }
+
+    [Test]
+    public async Task E2E_GetActiveAudioSessions_ReturnsList()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var result = await client.CallToolAsync("get_active_audio_sessions", null);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            
+            // Should return a list (possibly empty if no sessions active)
+            Assert.That(textContent.Text, Is.Not.Null, "Response text is null");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
 }

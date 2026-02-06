@@ -30,6 +30,10 @@ rootCmd.SetHandler((desktop, httpPort) => {
     captureService.InitializeMonitors();
     ScreenCaptureTools.SetCaptureService(captureService);
     
+    // Initialize audio capture service
+    var audioCaptureService = new AudioCaptureService();
+    ScreenCaptureTools.SetAudioCaptureService(audioCaptureService);
+    
     Console.Error.WriteLine("[Stdio] MCP Windows Screen Capture Server started in stdio mode");
     
     // Start HTTP server for frame streaming if port is specified
