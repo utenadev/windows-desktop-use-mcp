@@ -19,11 +19,17 @@ var httpPortOption = new Option<int>(
     description: "HTTP server port for frame streaming (0=disable)",
     getDefaultValue: () => 5000);
 
+var testOption = new Option<bool>(
+    name: "--test-whisper",
+    description: "Test Whisper transcription directly",
+    getDefaultValue: () => false);
+
 var rootCmd = new RootCommand("MCP Windows Screen Capture Server");
 rootCmd.AddOption(desktopOption);
 rootCmd.AddOption(httpPortOption);
+rootCmd.AddOption(testOption);
 
-rootCmd.SetHandler((desktop, httpPort) => {
+rootCmd.SetHandler((desktop, httpPort, testWhisper) => {
     SetProcessDPIAware();
     
     var captureService = new ScreenCaptureService(desktop);
@@ -33,6 +39,52 @@ rootCmd.SetHandler((desktop, httpPort) => {
     // Initialize audio capture service
     var audioCaptureService = new AudioCaptureService();
     ScreenCaptureTools.SetAudioCaptureService(audioCaptureService);
+    
+    // Initialize Whisper transcription service
+    var whisperService = new WhisperTranscriptionService();
+    ScreenCaptureTools.SetWhisperService(whisperService);
+    
+    // Test mode for debugging Whisper
+    if (testWhisper)
+    {
+        Console.Error.WriteLine("[TEST] Testing Whisper transcription...");
+        Console.Error.WriteLine("[TEST] Please play audio on YouTube! Starting in 3 seconds...");
+        Thread.Sleep(3000);
+        
+        try
+        {
+            var result = ScreenCaptureTools.Listen(
+                source: "system",
+                duration: 30,
+                language: "ja",  // 日本語固定
+                modelSize: "small",  // Small model: 244MB, 高精度
+                translate: false);
+            
+            Console.Error.WriteLine($"[TEST] ========================================");
+            Console.Error.WriteLine($"[TEST] 検出言語: {result.Language}");
+            Console.Error.WriteLine($"[TEST] セグメント数: {result.Segments.Count}");
+            Console.Error.WriteLine($"[TEST] 合計時間: {result.Duration.TotalSeconds:F2}秒");
+            Console.Error.WriteLine($"[TEST] ========================================");
+            Console.Error.WriteLine($"[TEST] 【文字起こし結果】");
+
+            int i = 1;
+            foreach (var seg in result.Segments)
+            {
+                var timeStr = seg.Start.ToString(@"mm\:ss");
+                Console.Error.WriteLine($"[TEST] [{i:D2} {timeStr}] {seg.Text}");
+                i++;
+            }
+            Console.Error.WriteLine($"[TEST] ========================================");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[TEST] ERROR: {ex.GetType().Name}");
+            Console.Error.WriteLine($"[TEST] Message: {ex.Message}");
+            Console.Error.WriteLine($"[TEST] Stack: {ex.StackTrace}");
+        }
+        
+        return;
+    }
     
     Console.Error.WriteLine("[Stdio] MCP Windows Screen Capture Server started in stdio mode");
     
@@ -54,7 +106,7 @@ rootCmd.SetHandler((desktop, httpPort) => {
     
     var host = builder.Build();
     host.Run();
-}, desktopOption, httpPortOption);
+}, desktopOption, httpPortOption, testOption);
 
 await rootCmd.InvokeAsync(args);
 

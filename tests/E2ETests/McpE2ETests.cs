@@ -763,4 +763,117 @@ public class McpE2ETests
             await client.DisposeAsync();
         }
     }
+
+    // ============ WHISPER SPEECH RECOGNITION E2E TESTS ============
+
+    [Test]
+    public async Task E2E_GetWhisperModelInfo_ReturnsModelList()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            var result = await client.CallToolAsync("get_whisper_model_info", null);
+            Assert.That(result, Is.Not.Null);
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null.And.Not.Empty, "Response is empty");
+            
+            // Verify it contains model names
+            Assert.That(textContent.Text, Does.Contain("tiny").Or.Contain("base"), 
+                "Response should contain model information");
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
+    [Test]
+    [Explicit("Requires YouTube or audio playing in background and downloads Whisper model (~74MB)")]
+    [Description("IMPORTANT: This test will download the Whisper Base model (74MB) on first run!" +
+                 "\nEnsure YouTube or podcast is playing for transcription." +
+                 "\nTest duration: ~30 seconds (10s recording + transcription time)")]
+    public async Task E2E_Listen_SystemAudio_TranscribesYouTubePodcast()
+    {
+        var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>());
+
+        try
+        {
+            Console.WriteLine("\n" + new string('=', 70));
+            Console.WriteLine("WHISPER SPEECH RECOGNITION TEST");
+            Console.WriteLine(new string('=', 70));
+            Console.WriteLine("This test will:");
+            Console.WriteLine("1. Download Whisper Base model (74MB) on first run");
+            Console.WriteLine("2. Record 10 seconds of system audio");
+            Console.WriteLine("3. Transcribe the audio to text");
+            Console.WriteLine(new string('=', 70));
+            Console.WriteLine("Please ensure YouTube podcast is playing!");
+            Console.WriteLine("Test starting in 3 seconds...\n");
+            
+            await Task.Delay(3000);
+
+            // Call listen tool with system audio
+            var args = new Dictionary<string, object?>
+            {
+                ["source"] = "system",
+                ["duration"] = 10,  // 10 seconds recording
+                ["language"] = "auto", // Auto-detect language
+                ["modelSize"] = "base", // Base model (good balance)
+                ["translate"] = false
+            };
+
+            Console.WriteLine("[Test] Starting audio recording and transcription...");
+            Console.WriteLine("[Test] Recording system audio for 10 seconds...");
+            
+            var startTime = DateTime.Now;
+            var result = await client.CallToolAsync("listen", args);
+            var elapsed = DateTime.Now - startTime;
+            
+            Assert.That(result, Is.Not.Null, "listen tool failed");
+
+            var textContent = result.Content.OfType<TextContentBlock>().FirstOrDefault();
+            Assert.That(textContent, Is.Not.Null, "No text content found");
+            Assert.That(textContent.Text, Is.Not.Null.And.Not.Empty, "Transcription result is empty");
+            
+            // Log raw response for debugging
+            Console.WriteLine($"\n[Debug] Raw response:\n{textContent.Text}\n");
+            
+            // Parse transcription result
+            using var doc = System.Text.Json.JsonDocument.Parse(textContent.Text);
+            var root = doc.RootElement;
+            
+            // Check for segments
+            if (root.TryGetProperty("segments", out var segmentsElement))
+            {
+                var segmentCount = segmentsElement.GetArrayLength();
+                Console.WriteLine($"\n✅ SUCCESS! Transcription complete:");
+                Console.WriteLine($"   Segments: {segmentCount}");
+                Console.WriteLine($"   Total time: {elapsed.TotalSeconds:F1} seconds");
+                Console.WriteLine($"   Recording: 10 seconds");
+                Console.WriteLine($"   Processing: {elapsed.TotalSeconds - 10:F1} seconds");
+                Console.WriteLine("\n--- TRANSCRIPTION ---");
+                
+                foreach (var segment in segmentsElement.EnumerateArray())
+                {
+                    var text = segment.GetProperty("text").GetString();
+                    var start = segment.GetProperty("start").GetString();
+                    Console.WriteLine($"[{start}] {text}");
+                }
+                Console.WriteLine("--- END ---\n");
+                
+                Assert.That(segmentCount, Is.GreaterThan(0), "No transcription segments found");
+            }
+            else
+            {
+                Console.WriteLine($"\n⚠️  Response structure: {textContent.Text}");
+                Assert.Fail("No segments found in transcription result");
+            }
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
 }

@@ -35,7 +35,8 @@ public record AudioCaptureResult(
     string Format,
     int SampleRate,
     int Channels,
-    TimeSpan Duration
+    TimeSpan Duration,
+    string? OutputPath = null
 );
 
 /// <summary>
@@ -226,7 +227,8 @@ public class AudioCaptureService : IDisposable
             "wav",
             44100, // Default sample rate
             session.Source == AudioCaptureSource.Microphone ? 1 : 2,
-            duration
+            duration,
+            session.OutputPath
         );
     }
 
