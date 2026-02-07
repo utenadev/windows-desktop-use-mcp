@@ -1,28 +1,29 @@
-# MCP Windows Screen Capture Server
+# windows-desktop-use-mcp
 
-Windows 11 screen capture MCP server with stdio transport for Claude Desktop.
+An MCP server for controlling and perceiving Windows 11 from AI assistants.
+It provides AI with "eyes" (vision), "ears" (hearing), and "limbs" (input control), making the desktop environment accessible from MCP clients like Claude.
 
-## Features
+## Main Features
 
-- **Screen Capture**: Capture monitors, windows, or regions.
-- **Audio Capture**: Record system audio or microphone.
-- **Speech Recognition**: Local high-quality transcription using Whisper AI.
-- **HTTP Streaming**: View live frames in your browser while interacting with Claude.
+- **Vision (Screen Capture)**: Capture monitors, specific windows, or arbitrary regions.
+- **Hearing (Audio & Transcription)**: Record system audio or microphone, with high-quality local transcription using Whisper AI.
+- **Limbs (Desktop Input)**: Mouse movement, clicking, dragging, keyboard typing (Unicode support), and special key operations.
+- **Live Monitoring (Streaming)**: Monitor screen changes in real-time, viewable via HTTP streaming in a browser.
 
 ## Quick Start
 
 ### 1. Build
-```bash
-dotnet build src/WindowsScreenCaptureServer.csproj -c Release
+```powershell
+dotnet build src/WindowsDesktopUse.App/WindowsDesktopUse.App.csproj -c Release
 ```
 
 ### 2. Configure Claude Desktop
-Add this to your `mcpConfig.json`:
+Add this to your `%AppData%\Roaming\Claude\claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "windows-capture": {
-      "command": "C:\\path\\to\\WindowsScreenCaptureServer.exe",
+    "windows-desktop-use": {
+      "command": "C:\\path\\to\\WindowsDesktopUse.App.exe",
       "args": ["--httpPort", "5000"]
     }
   }
@@ -31,25 +32,35 @@ Add this to your `mcpConfig.json`:
 
 ## Available MCP Tools (Summary)
 
-| Tool | Description |
-|------|-------------|
-| `list_all` | List all monitors and windows |
-| `capture` | Capture any target as image |
-| `watch` | Start streaming a target |
-| `listen` | Transcribe audio to text |
+### Vision & Information
+- `list_all`: List all monitors and windows.
+- `capture`: Capture any target as an image.
+- `watch`: Start monitoring/streaming a target.
 
-For a full list of tools and detailed usage, see [**Tools Guide**](docs/TOOLS.md).
+### Hearing
+- `listen`: Record system audio or microphone and transcribe to text.
+- `list_audio_devices`: List available audio devices.
+
+### Input Control
+- `mouse_move`: Move cursor to specific coordinates.
+- `mouse_click`: Left/Right/Middle click, and double-clicks.
+- `mouse_drag`: Drag and drop operations.
+- `keyboard_type`: Type text (Unicode support).
+- `keyboard_key`: Press special keys (Enter, Tab, Win, Ctrl+C, etc.).
+
+For detailed arguments and examples, see the [**Tools Guide**](docs/TOOLS.md).
 
 ## Documentation Index
 
-- [**Tools Reference**](docs/TOOLS.md) - Detailed command list and examples.
-- [**Development Guide**](docs/DEVELOPMENT.md) - Build, test, and architecture details.
-- [**Whisper AI**](docs/WHISPER.md) - Speech recognition features and models.
+- [**Tools Reference**](docs/TOOLS.md) - Detailed command list and usage examples.
+- [**Development Guide**](docs/DEVELOPMENT.md) - Details on build, test, and architecture (DLL structure).
+- [**Whisper AI**](docs/WHISPER.md) - Information about speech recognition features and models.
 
 ## Requirements
 
 - Windows 11 (or Windows 10 1803+)
 - .NET 8.0 Runtime/SDK
+- High DPI aware (Uses physical pixel coordinates)
 
 ## License
 MIT License. See [LICENSE](LICENSE) file.

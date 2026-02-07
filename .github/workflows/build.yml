@@ -19,17 +19,17 @@ jobs:
         dotnet-version: '8.0.x'
     
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore WindowsDesktopUse.sln
     
     - name: Build
-      run: dotnet build -c Release --no-restore
+      run: dotnet build WindowsDesktopUse.sln -c Release --no-restore
     
     - name: Test
-      run: dotnet test -c Release --no-build --verbosity normal
+      run: dotnet test WindowsDesktopUse.sln -c Release --no-build --verbosity normal --filter "TestCategory!=Explicit"
     
     - name: Publish single-file
       run: |
-        dotnet publish src/WindowsScreenCaptureServer.csproj `
+        dotnet publish src/WindowsDesktopUse.App/WindowsDesktopUse.App.csproj `
           -c Release `
           -r win-x64 `
           --self-contained false `
@@ -39,8 +39,8 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: mcp-windows-screen-capture
-        path: src/publish/
+        name: windows-desktop-use-mcp
+        path: src/WindowsDesktopUse.App/publish/
         retention-days: 30
 
   # Optional: Create release on tag
@@ -53,7 +53,7 @@ jobs:
     - name: Download artifact
       uses: actions/download-artifact@v4
       with:
-        name: mcp-windows-screen-capture
+        name: windows-desktop-use-mcp
         path: ./release
     
     - name: Create Release

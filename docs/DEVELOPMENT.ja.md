@@ -1,21 +1,44 @@
 # 開発者ガイド
 
-このドキュメントでは、MCP Windows Screen Capture Server のビルド、テスト、および貢献を検討している開発者向けの情報を提供します。
+このドキュメントでは、`windows-desktop-use-mcp` のビルド、テスト、およびアーキテクチャの詳細について説明します。
 
 ## アーキテクチャ
 
-本サーバーは .NET 8 で構築されており、以下のパターンを採用しています。
+本プロジェクトは、保守性と再利用性を高めるため、機能ごとに複数のモジュール（DLL）に分割されています。
 
-- **Program.cs**: エントリポイント。コマンドライン引数の解析、サービスの初期化、MCP ホストの起動を行います。
-- **Services/**: 各ドメインのコアロジック。
-  - `ScreenCaptureService`: GDI+ による画面・ウィンドウキャプチャとセッション管理。
-  - `AudioCaptureService`: NAudio を使用したオーディオ録音。
-  - `WhisperTranscriptionService`: Whisper.net を使用した AI 文字起こし。
-- **Tools/ScreenCaptureTools.cs**: MCP ツールのインターフェース定義。ツール呼び出しを各サービスにマッピングします。
-- **CaptureServices/**: モダンなキャプチャ API (Windows Graphics Capture) のための基盤 (開発中)。
+### コンポーネント構成図
 
-### 重要: Stdio プロトコルとログ
-ログを出力する際は、**必ず `Console.Error.WriteLine` を使用してください**。`stdout` に書き込むと、MCP クライアント（Claude Desktop 等）との JSON-RPC 通信が壊れます。
+```mermaid
+graph TD
+    App[WindowsDesktopUse.App - EXE] --> Core[WindowsDesktopUse.Core - DLL]
+    App --> Screen[WindowsDesktopUse.Screen - DLL]
+    App --> Audio[WindowsDesktopUse.Audio - DLL]
+    App --> Trans[WindowsDesktopUse.Transcription - DLL]
+    App --> Input[WindowsDesktopUse.Input - DLL]
+
+    Screen --> Core
+    Audio --> Core
+    Trans --> Audio
+    Input --> Core
+
+    subgraph "External Libraries"
+        Audio -- NAudio --> WASAPI
+        Trans -- Whisper.net --> WhisperAI
+        Screen -- GDI+/DirectX --> Win32API
+        Input -- SendInput --> Win32API
+    end
+```
+
+### モジュール詳細
+
+| プロジェクト名 | 役割 | 主な内容 |
+| :--- | :--- | :--- |
+| **`WindowsDesktopUse.Core`** | 基盤 | 共通のデータモデル（MonitorInfo, WindowInfo）、インターフェース、例外定義。 |
+| **`WindowsDesktopUse.Screen`** | 視覚 | GDI+ および DirectX を使用した画面・ウィンドウキャプチャ、ターゲット列挙。 |
+| **`WindowsDesktopUse.Audio`** | 聴覚 (録音) | WASAPI を使用したシステム音およびマイク入力の録音。 |
+| **`WindowsDesktopUse.Transcription`** | 聴覚 (解析) | Whisper.net を使用した音声データのテキスト化（文字起こし）。 |
+| **`WindowsDesktopUse.Input`** | 手足 (操作) | `SendInput` API を使用した低レベルなマウス・キーボード入力のシミュレーション。 |
+| **`WindowsDesktopUse.App`** | ホスト | MCP サーバーとしてのエントリポイント。各モジュールを統合しツールとして公開。 |
 
 ---
 
@@ -26,51 +49,43 @@
 - .NET 8.0 SDK
 
 ### ビルドコマンド
-```bash
-# プロジェクトのビルド
-dotnet build src/WindowsScreenCaptureServer.csproj -c Release
+```powershell
+# ソリューション全体のビルド
+dotnet build WindowsDesktopUse.sln -c Release
 
-# 実行ファイルは以下に生成されます:
-# src/bin/Release/net8.0-windows/win-x64/WindowsScreenCaptureServer.exe
+# 実行ファイル (EXE) の場所:
+# src/WindowsDesktopUse.App/bin/Release/net8.0-windows/win-x64/WindowsDesktopUse.App.exe
 ```
 
 ---
 
-## コード品質とフォーマット
+## 重要: 高DPI環境への対応
 
-本プロジェクトでは、.NET 標準の品質管理ツールを使用しています。
+本サーバーは `SetProcessDPIAware()` を呼び出しているため、物理ピクセル単位で動作します。
+- `Screen` モジュールで取得される座標とサイズは物理ピクセルです。
+- `Input` モジュールで指定するマウス座標も物理ピクセルとして解釈されます。
+これにより、AI がキャプチャ画像から算出した座標をそのままマウス操作に使用しても、ズレが発生しないよう設計されています。
 
-### コードの自動整形
-`.editorconfig` に基づいて、インデント、`using` の整理、コードスタイルを自動修正します。
+---
 
-```bash
-# プロジェクト全体のフォーマット
-dotnet format
-```
+## ログ出力の注意点
 
-### 静的解析 (Lint)
-ビルド時に自動的に静的解析が走ります。警告はビルド出力に表示されます。
-
-```bash
-# スタイル違反を確認する（修正は行わない）
-dotnet format --verify-no-changes
-```
+MCP の `stdio` トランスポートは `stdout` を JSON-RPC 通信に使用します。
+開発時にログを出力する場合は、**必ず `Console.Error.WriteLine` を使用してください**。`stdout` への書き込みはプロトコルを破壊し、クライアント（Claude 等）の切断を招きます。
 
 ---
 
 ## テスト
 
 ### E2E テスト
-`stdio` を介した MCP インタラクションをシミュレートする E2E テストが含まれています。
-```bash
+`tests/E2ETests` には、実際にサーバーを起動してツールを呼び出す結合テストが含まれています。
+```powershell
 dotnet test tests/E2ETests/E2ETests.csproj
 ```
 
-### 手動テスト (stdio)
-パイプを使用してツール呼び出しを直接テストできます。
-```bash
-# 初期化のテスト
-echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05"},"id":1}' | path/to/WindowsScreenCaptureServer.exe
+### 特定のテストの実行 (例: Notepad操作)
+```powershell
+dotnet test tests/E2ETests/E2ETests.csproj --filter "FullyQualifiedName~Notepad"
 ```
 
 ---
@@ -79,6 +94,6 @@ echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-1
 
 | 問題 | 解決策 |
 |-------|--------|
-| 画面が真っ黒 | 制限されたセッションで実行されていないか確認してください。管理者として実行を試してください。 |
-| 高い CPU 負荷 | ストリーミング監視は GDI+ キャプチャのため CPU 負荷が高くなります。`intervalMs` を大きくするか、不要なセッションを停止してください。 |
-| モデルのダウンロード失敗 | Hugging Face へのインターネット接続を確認してください。モデルは実行ファイルの `models/` サブディレクトリに保存されます。 |
+| 画面が真っ黒 | 制限されたセッション（ロック画面等）ではキャプチャできません。また、管理者権限での実行が必要な場合があります。 |
+| 入力が反映されない | 操作対象のアプリが管理者権限で実行されている場合、本サーバーも管理者権限で実行する必要があります（UIPIの制限）。 |
+| Whisper モデルのロード失敗 | `ggml-base.bin` などのモデルファイルが `models/` ディレクトリに存在することを確認してください。 |

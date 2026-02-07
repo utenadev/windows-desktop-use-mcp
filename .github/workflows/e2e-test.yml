@@ -28,13 +28,13 @@ jobs:
       run: dotnet nuget locals all --clear
     
     - name: Restore dependencies
-      run: dotnet restore src/WindowsScreenCaptureServer.csproj --verbosity normal
+      run: dotnet restore WindowsDesktopUse.sln --verbosity normal
     
-    - name: Build Server
-      run: dotnet build src/WindowsScreenCaptureServer.csproj -c Release --verbosity normal
+    - name: Build Solution
+      run: dotnet build WindowsDesktopUse.sln -c Release --verbosity normal
     
     - name: Run E2E Tests
-      run: dotnet test tests/E2ETests/E2ETests.csproj -c Release --verbosity normal
+      run: dotnet test tests/E2ETests/E2ETests.csproj -c Release --verbosity normal --filter "TestCategory!=Explicit"
     
     - name: List test directory
       shell: bash
@@ -44,5 +44,5 @@ jobs:
       if: github.event_name == 'release' && github.event.action == 'created'
       uses: actions/upload-artifact@v4
       with:
-        name: WindowsScreenCaptureServer
-        path: src/bin/Release/net8.0-windows/win-x64/WindowsScreenCaptureServer.exe
+        name: WindowsDesktopUse.App
+        path: src/WindowsDesktopUse.App/bin/Release/net8.0-windows/win-x64/WindowsDesktopUse.App.exe
