@@ -2,14 +2,19 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
+using WindowsDesktopUse.Core;
 
+namespace WindowsDesktopUse.Screen;
+
+/// <summary>
+/// Service for capturing screen, monitors, and windows
+/// </summary>
 public class ScreenCaptureService
 {
     private readonly uint _defaultMon;
     private readonly Dictionary<string, StreamSession> _sessions = new();
     private List<MonitorInfo> _monitors = new();
 
-    // Callback for sending frame notifications to MCP client
     public Func<string, string, Task>? OnFrameCaptured { get; set; }
 
     public ScreenCaptureService(uint defaultMon) => _defaultMon = defaultMon;
@@ -90,11 +95,9 @@ public class ScreenCaptureService
                     }
                     await s.Channel.Writer.WriteAsync(img, s.Cts.Token).ConfigureAwait(false);
 
-                    // Cache the latest frame
                     s.LatestFrame = img;
                     s.LastCaptureTime = DateTime.UtcNow;
 
-                    // Send notification to MCP client with captured frame
                     if (OnFrameCaptured != null)
                     {
                         try
@@ -110,7 +113,7 @@ public class ScreenCaptureService
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     Console.Error.WriteLine($"[Stream {s.Id}] Capture error: {ex.Message}");
-                    await Task.Delay(1000, s.Cts.Token).ConfigureAwait(false); // Backoff on error
+                    await Task.Delay(1000, s.Cts.Token).ConfigureAwait(false);
                     continue;
                 }
 
@@ -131,7 +134,6 @@ public class ScreenCaptureService
         }
         catch (OperationCanceledException)
         {
-            // Normal cancellation, no action needed
         }
         catch (Exception ex)
         {
@@ -181,9 +183,6 @@ public class ScreenCaptureService
     [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
     [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
-    [DllImport("user32.dll")] static extern IntPtr GetWindowDC(IntPtr hWnd);
-    [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
-    [DllImport("gdi32.dll")] static extern bool BitBlt(IntPtr hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, IntPtr hdcSrc, int nXSrc, int nYSrc, int dwRop);
 
     delegate bool EnumMonDelegate(IntPtr h, IntPtr hdc, ref RECT rc, IntPtr d);
     delegate bool EnumWindowsDelegate(IntPtr hWnd, IntPtr lParam);
@@ -254,14 +253,11 @@ public class ScreenCaptureService
             var hdcDest = g.GetHdc();
             try
             {
-                // Try PW_RENDERFULLCONTENT flag (0x00000002) for GPU app capture
-                // This flag was added in Windows 8.1 to capture full window content including GPU-rendered parts
                 const uint PW_RENDERFULLCONTENT = 0x00000002;
                 bool success = PrintWindow(hWnd, hdcDest, PW_RENDERFULLCONTENT);
 
                 if (!success)
                 {
-                    // Fallback to standard PrintWindow if PW_RENDERFULLCONTENT fails
                     success = PrintWindow(hWnd, hdcDest, 0);
                 }
 
@@ -296,59 +292,4 @@ public class ScreenCaptureService
 
     [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)] struct MONITORINFOEX { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string szDevice; }
-}
-
-public record WindowInfo(long Hwnd, string Title, int W, int H, int X, int Y);
-
-public record MonitorInfo(uint Idx, string Name, int W, int H, int X, int Y);
-public class StreamSession
-{
-    public string Id = "";
-    public string TargetType = "monitor"; // "monitor" or "window"
-    public uint MonIdx;
-    public long Hwnd;
-    public int Interval;
-    public int Quality;
-    public int MaxW;
-    public CancellationTokenSource Cts = new();
-    public Channel<string> Channel { get; }
-
-    // Cache for latest captured frame
-    private string _latestFrame = "";
-    private readonly object _frameLock = new();
-
-    public string LatestFrame
-    {
-        get
-        {
-            lock (_frameLock)
-            {
-                return _latestFrame;
-            }
-        }
-        set
-        {
-            lock (_frameLock)
-            {
-                _latestFrame = value;
-                LastFrameHash = ComputeHash(value);
-            }
-        }
-    }
-
-    public string LastFrameHash { get; private set; } = "";
-    public DateTime LastCaptureTime { get; set; }
-
-    private static string ComputeHash(string data)
-    {
-        if (string.IsNullOrEmpty(data)) return "";
-        var bytes = System.Text.Encoding.UTF8.GetBytes(data);
-        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
-        return Convert.ToHexString(hash)[..16]; // First 16 chars for brevity
-    }
-
-    public StreamSession()
-    {
-        Channel = System.Threading.Channels.Channel.CreateUnbounded<string>();
-    }
 }

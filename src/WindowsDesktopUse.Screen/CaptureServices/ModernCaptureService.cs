@@ -1,18 +1,17 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
+using WindowsDesktopUse.Core;
+
+namespace WindowsDesktopUse.Screen;
 
 /// <summary>
 /// Capture API preference options
 /// </summary>
 public enum CaptureApiPreference
 {
-    /// <summary>Automatically choose best available API</summary>
     Auto,
-    /// <summary>Use Windows.Graphics.Capture API only (modern)</summary>
     Modern,
-    /// <summary>Use PrintWindow API only (legacy)</summary>
     Legacy,
-    /// <summary>Try modern first, fallback to legacy</summary>
     Hybrid
 }
 
@@ -28,13 +27,7 @@ public interface ICaptureService
 }
 
 /// <summary>
-/// Windows Graphics Capture API implementation
-/// Requires Windows 10 1803+ or Windows 11
-/// 
-/// TODO: This is a stub implementation. Full implementation requires:
-/// - C#/WinRT (CsWinRT) projection for Windows.Graphics.Capture
-/// - Direct3D11 integration for frame capture
-/// - See: https://github.com/microsoft/Windows.UI.Composition-Win32-Samples
+/// Windows Graphics Capture API implementation (stub)
 /// </summary>
 public class ModernCaptureService : ICaptureService, IDisposable
 {
@@ -44,8 +37,6 @@ public class ModernCaptureService : ICaptureService, IDisposable
     {
         get
         {
-            // Check if Windows.Graphics.Capture is supported
-            // Windows 10 1803+ (build 17134) or Windows 11
             return Environment.OSVersion.Version.Build >= 17134 &&
                    IsGraphicsCaptureAvailable();
         }
@@ -53,10 +44,6 @@ public class ModernCaptureService : ICaptureService, IDisposable
 
     public ModernCaptureService()
     {
-        // Full implementation requires:
-        // 1. C#/WinRT projection generation
-        // 2. Direct3D11 device creation
-        // 3. GraphicsCaptureItem interop
         throw new NotImplementedException(
             "ModernCaptureService requires C#/WinRT projection. " +
             "Use Legacy mode or Hybrid with fallback.");
@@ -89,9 +76,6 @@ public class ModernCaptureService : ICaptureService, IDisposable
 
     private static bool IsGraphicsCaptureAvailable()
     {
-        // In a full implementation, this would check:
-        // GraphicsCaptureSession.IsSupported()
-        // For now, assume not available until properly implemented
         return false;
     }
 }
@@ -126,7 +110,6 @@ public class HybridCaptureService : ICaptureService
         _legacy = legacy ?? throw new ArgumentNullException(nameof(legacy));
         _preference = preference;
 
-        // Try to create modern service
         try
         {
             _modern = new ModernCaptureService();
@@ -139,7 +122,6 @@ public class HybridCaptureService : ICaptureService
 
     public async Task<Bitmap?> CaptureWindowAsync(IntPtr hwnd, CancellationToken ct = default)
     {
-        // Try modern API first if available and preferred
         if (ShouldTryModern())
         {
             try
@@ -150,17 +132,14 @@ public class HybridCaptureService : ICaptureService
             }
             catch
             {
-                // Fall through to legacy
             }
         }
 
-        // Fallback to legacy
         return CaptureWindowLegacy(hwnd);
     }
 
     public async Task<Bitmap?> CaptureMonitorAsync(uint monitorIndex, CancellationToken ct = default)
     {
-        // Try modern API first if available and preferred
         if (ShouldTryModern())
         {
             try
@@ -171,11 +150,9 @@ public class HybridCaptureService : ICaptureService
             }
             catch
             {
-                // Fall through to legacy
             }
         }
 
-        // Fallback to legacy - use existing ScreenCaptureService
         return CaptureMonitorLegacy(monitorIndex);
     }
 
@@ -195,11 +172,9 @@ public class HybridCaptureService : ICaptureService
 
     private Bitmap CaptureWindowLegacy(IntPtr hwnd)
     {
-        // Use existing capture logic from ScreenCaptureTools
         var hwndLong = hwnd.ToInt64();
         var imageData = _legacy.CaptureWindow(hwndLong, 1920, 80);
 
-        // Convert base64 to bitmap
         var base64Data = imageData.Contains(";base64,")
             ? imageData.Split(',')[1]
             : imageData;
@@ -211,10 +186,8 @@ public class HybridCaptureService : ICaptureService
 
     private Bitmap CaptureMonitorLegacy(uint monitorIndex)
     {
-        // Use existing capture logic from ScreenCaptureService
         var imageData = _legacy.CaptureSingle(monitorIndex, 1920, 80);
 
-        // Convert base64 to bitmap
         var base64Data = imageData.Contains(";base64,")
             ? imageData.Split(',')[1]
             : imageData;

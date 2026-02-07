@@ -1,4 +1,5 @@
 using ModelContextProtocol.Protocol;
+using WindowsDesktopUse.Core;
 
 namespace E2ETests;
 
@@ -19,10 +20,10 @@ public class McpE2ETests
         var possiblePaths = new[]
         {
             // GitHub Actions build paths
-            Path.Combine(repoRoot, "src", "bin", "Release", "net8.0-windows", "win-x64", "WindowsScreenCaptureServer.exe"),
-            Path.Combine(repoRoot, "src", "bin", "Debug", "net8.0-windows", "win-x64", "WindowsScreenCaptureServer.exe"),
+            Path.Combine(repoRoot, "src", "WindowsDesktopUse.App", "bin", "Release", "net8.0-windows", "win-x64", "WindowsDesktopUse.App.exe"),
+            Path.Combine(repoRoot, "src", "WindowsDesktopUse.App", "bin", "Debug", "net8.0-windows", "win-x64", "WindowsDesktopUse.App.exe"),
             // Local development fallback
-            @"C:\workspace\mcp-windows-screen-capture\src\bin\Release\net8.0-windows\win-x64\WindowsScreenCaptureServer.exe"
+            @"C:\workspace\mcp-windows-screen-capture\src\WindowsDesktopUse.App\bin\Release\net8.0-windows\win-x64\WindowsDesktopUse.App.exe"
         };
 
         foreach (var path in possiblePaths)
@@ -34,7 +35,7 @@ public class McpE2ETests
             }
         }
 
-        throw new FileNotFoundException($"WindowsScreenCaptureServer.exe not found. Checked paths:\n{string.Join("\n", possiblePaths.Select(p => Path.GetFullPath(p)))}\n\nPlease build the project first.");
+        throw new FileNotFoundException($"WindowsDesktopUse.App.exe not found. Checked paths:\n{string.Join("\n", possiblePaths.Select(p => Path.GetFullPath(p)))}\n\nPlease build the project first.");
     }
 
     private static string GetRepoRootFromAssembly()
@@ -818,7 +819,7 @@ public class McpE2ETests
             {
                 ["source"] = "system",
                 ["duration"] = 10,  // 10 seconds recording
-                ["language"] = "auto", // Auto-detect language
+                ["language"] = "ja", // Japanese language
                 ["modelSize"] = "base", // Base model (good balance)
                 ["translate"] = false
             };

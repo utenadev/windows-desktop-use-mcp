@@ -1,40 +1,9 @@
 using NAudio.Wave;
 using Whisper.net;
 using Whisper.net.Ggml;
+using WindowsDesktopUse.Core;
 
-/// <summary>
-/// Whisper model sizes and their characteristics
-/// </summary>
-public enum WhisperModelSize
-{
-    Tiny,    // 39 MB, fastest, lowest accuracy
-    Base,    // 74 MB, fast, medium accuracy (recommended)
-    Small,   // 244 MB, medium speed, high accuracy
-    Medium,  // 769 MB, slow, very high accuracy
-    Large    // 1550 MB, slowest, best accuracy
-}
-
-/// <summary>
-/// Transcription segment with timing information
-/// </summary>
-public record TranscriptionSegment(
-    TimeSpan Start,
-    TimeSpan End,
-    string Text,
-    double Probability,
-    string? Language = null
-);
-
-/// <summary>
-/// Transcription result
-/// </summary>
-public record TranscriptionResult(
-    string SessionId,
-    List<TranscriptionSegment> Segments,
-    string Language,
-    TimeSpan Duration,
-    string ModelUsed
-);
+namespace WindowsDesktopUse.Transcription;
 
 /// <summary>
 /// Service for transcribing audio using Whisper.net
@@ -110,7 +79,7 @@ public class WhisperTranscriptionService : IDisposable
     {
         if (_whisperFactory != null && _loadedModelSize == size)
         {
-            return; // Already loaded
+            return;
         }
 
         await EnsureModelExistsAsync(size, ct).ConfigureAwait(false);
@@ -131,7 +100,6 @@ public class WhisperTranscriptionService : IDisposable
 
         using var reader = new AudioFileReader(inputPath);
 
-        // Resample to 16kHz, 16bit, mono
         var targetFormat = new WaveFormat(16000, 16, 1);
         using var resampler = new MediaFoundationResampler(reader, targetFormat);
 
@@ -150,7 +118,6 @@ public class WhisperTranscriptionService : IDisposable
         bool translateToEnglish = false,
         CancellationToken ct = default)
     {
-        // Load model
         await LoadModelAsync(modelSize, ct).ConfigureAwait(false);
 
         if (_whisperFactory == null)
@@ -158,7 +125,6 @@ public class WhisperTranscriptionService : IDisposable
             throw new InvalidOperationException("Whisper model not loaded");
         }
 
-        // Convert to Whisper-compatible format
         var convertedPath = ConvertToWhisperFormat(audioPath);
 
         var segments = new List<TranscriptionSegment>();
@@ -166,13 +132,11 @@ public class WhisperTranscriptionService : IDisposable
 
         var builder = _whisperFactory.CreateBuilder();
 
-        // Set language if specified
         if (!string.IsNullOrEmpty(language))
         {
             builder.WithLanguage(language);
         }
 
-        // Enable translation if requested
         if (translateToEnglish)
         {
             builder.WithTranslate();
@@ -194,7 +158,6 @@ public class WhisperTranscriptionService : IDisposable
                     detectedLanguage
                 ));
 
-                // Update detected language from first segment if auto-detect
                 if (language == null && detectedLanguage == "auto")
                 {
                     detectedLanguage = result.Language;
@@ -203,7 +166,6 @@ public class WhisperTranscriptionService : IDisposable
         }
         finally
         {
-            // Clean up converted file
             try
             {
                 File.Delete(convertedPath);
@@ -234,7 +196,6 @@ public class WhisperTranscriptionService : IDisposable
         bool translateToEnglish = false,
         CancellationToken ct = default)
     {
-        // Save to temp file
         var tempPath = Path.Combine(Path.GetTempPath(), $"whisper_input_{Guid.NewGuid()}.wav");
         try
         {
@@ -275,12 +236,3 @@ public class WhisperTranscriptionService : IDisposable
         }
     }
 }
-
-/// <summary>
-/// Model information
-/// </summary>
-public record ModelInfo(
-    string Size,
-    string Performance,
-    string BestFor
-);

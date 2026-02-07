@@ -1,5 +1,10 @@
 using System.CommandLine;
 using System.Runtime.InteropServices;
+using WindowsDesktopUse.Screen;
+using WindowsDesktopUse.Audio;
+using WindowsDesktopUse.Transcription;
+using WindowsDesktopUse.Input;
+using WindowsDesktopUse.App;
 
 [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
@@ -18,7 +23,7 @@ var testOption = new Option<bool>(
     description: "Test Whisper transcription directly",
     getDefaultValue: () => false);
 
-var rootCmd = new RootCommand("MCP Windows Screen Capture Server");
+var rootCmd = new RootCommand("Windows Desktop Use MCP Server");
 rootCmd.AddOption(desktopOption);
 rootCmd.AddOption(httpPortOption);
 rootCmd.AddOption(testOption);
@@ -29,17 +34,17 @@ rootCmd.SetHandler((desktop, httpPort, testWhisper) =>
 
     var captureService = new ScreenCaptureService(desktop);
     captureService.InitializeMonitors();
-    ScreenCaptureTools.SetCaptureService(captureService);
+    DesktopUseTools.SetCaptureService(captureService);
 
-    // Initialize audio capture service
     var audioCaptureService = new AudioCaptureService();
-    ScreenCaptureTools.SetAudioCaptureService(audioCaptureService);
+    DesktopUseTools.SetAudioCaptureService(audioCaptureService);
 
-    // Initialize Whisper transcription service
     var whisperService = new WhisperTranscriptionService();
-    ScreenCaptureTools.SetWhisperService(whisperService);
+    DesktopUseTools.SetWhisperService(whisperService);
 
-    // Test mode for debugging Whisper
+    var inputService = new InputService();
+    DesktopUseTools.SetInputService(inputService);
+
     if (testWhisper)
     {
         Console.Error.WriteLine("[TEST] Testing Whisper transcription...");
@@ -48,11 +53,11 @@ rootCmd.SetHandler((desktop, httpPort, testWhisper) =>
 
         try
         {
-            var result = ScreenCaptureTools.Listen(
+            var result = DesktopUseTools.Listen(
                 source: "system",
                 duration: 30,
-                language: "ja",  // 日本語固定
-                modelSize: "small",  // Small model: 244MB, 高精度
+                language: "ja",
+                modelSize: "small",
                 translate: false);
 
             Console.Error.WriteLine($"[TEST] ========================================");
@@ -81,9 +86,8 @@ rootCmd.SetHandler((desktop, httpPort, testWhisper) =>
         return;
     }
 
-    Console.Error.WriteLine("[Stdio] MCP Windows Screen Capture Server started in stdio mode");
+    Console.Error.WriteLine("[Stdio] Windows Desktop Use MCP Server started in stdio mode");
 
-    // Start HTTP server for frame streaming if port is specified
     if (httpPort > 0)
     {
         _ = StartHttpServer(captureService, httpPort);
@@ -92,13 +96,12 @@ rootCmd.SetHandler((desktop, httpPort, testWhisper) =>
     }
 
     var builder = Host.CreateApplicationBuilder();
-    // Disable logging to stdout for MCP stdio protocol compliance
     builder.Logging.ClearProviders();
     builder.Logging.AddProvider(new StderrLoggerProvider());
     builder.Services
         .AddMcpServer()
         .WithStdioServerTransport()
-        .WithToolsFromAssembly(typeof(ScreenCaptureTools).Assembly);
+        .WithToolsFromAssembly(typeof(DesktopUseTools).Assembly);
 
     var host = builder.Build();
     host.Run();
@@ -114,7 +117,6 @@ static async Task StartHttpServer(ScreenCaptureService captureService, int port)
 
     var app = builder.Build();
 
-    // Endpoint to get latest frame as JPEG image
     app.MapGet("/frame/{sessionId}", (string sessionId, ScreenCaptureService svc) =>
     {
         if (!svc.TryGetSession(sessionId, out var session) || session == null)
@@ -130,7 +132,6 @@ static async Task StartHttpServer(ScreenCaptureService captureService, int port)
 
         try
         {
-            // Convert base64 to binary
             var imageBytes = Convert.FromBase64String(frameData);
             return Results.Bytes(imageBytes, "image/jpeg");
         }
@@ -140,7 +141,6 @@ static async Task StartHttpServer(ScreenCaptureService captureService, int port)
         }
     });
 
-    // Endpoint to get frame info (hash, timestamp) without image data
     app.MapGet("/frame/{sessionId}/info", (string sessionId, ScreenCaptureService svc) =>
     {
         if (!svc.TryGetSession(sessionId, out var session) || session == null)
@@ -159,13 +159,11 @@ static async Task StartHttpServer(ScreenCaptureService captureService, int port)
         });
     });
 
-    // Health check
     app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-    // Root endpoint with usage info
     app.MapGet("/", () => Results.Ok(new
     {
-        message = "MCP Screen Capture HTTP Server",
+        message = "Windows Desktop Use MCP HTTP Server",
         endpoints = new
         {
             frame = "/frame/{sessionId} - Get latest frame as JPEG image",
@@ -178,7 +176,6 @@ static async Task StartHttpServer(ScreenCaptureService captureService, int port)
     await app.RunAsync($"http://localhost:{port}").ConfigureAwait(false);
 }
 
-// Custom logger that writes to stderr to avoid polluting stdout (MCP stdio protocol)
 public class StderrLoggerProvider : ILoggerProvider
 {
     public ILogger CreateLogger(string categoryName) => new StderrLogger(categoryName);

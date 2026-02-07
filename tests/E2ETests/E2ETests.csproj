@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\WindowsScreenCaptureServer.csproj" />
+    <ProjectReference Include="..\..\src\WindowsDesktopUse.App\WindowsDesktopUse.App.csproj" />
   </ItemGroup>
 
 </Project>

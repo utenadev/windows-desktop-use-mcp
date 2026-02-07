@@ -1,47 +1,28 @@
 using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using WindowsDesktopUse.Core;
+using WindowsDesktopUse.Screen;
+using WindowsDesktopUse.Audio;
+using WindowsDesktopUse.Transcription;
+using WindowsDesktopUse.Input;
 
-// Data models for unified tools
-public record CaptureTarget(
-    string Type,
-    string Id,
-    string Name,
-    int Width,
-    int Height,
-    int X,
-    int Y
-);
-
-public record CaptureTargets(
-    List<CaptureTarget> Monitors,
-    List<CaptureTarget> Windows,
-    int TotalCount
-);
-
-public record CaptureResult(
-    string ImageData,
-    string MimeType,
-    int Width,
-    int Height,
-    string TargetType,
-    string TargetId
-);
-
-public record WatchSession(
-    string SessionId,
-    string TargetType,
-    string TargetId,
-    int IntervalMs,
-    string Status
-);
+namespace WindowsDesktopUse.App;
 
 [McpServerToolType]
-public static class ScreenCaptureTools
+public static class DesktopUseTools
 {
     private static ScreenCaptureService? _capture;
+    private static AudioCaptureService? _audioCapture;
+    private static WhisperTranscriptionService? _whisperService;
+    private static InputService? _inputService;
 
     public static void SetCaptureService(ScreenCaptureService capture) => _capture = capture;
+    public static void SetAudioCaptureService(AudioCaptureService audioCapture) => _audioCapture = audioCapture;
+    public static void SetWhisperService(WhisperTranscriptionService whisperService) => _whisperService = whisperService;
+    public static void SetInputService(InputService inputService) => _inputService = inputService;
+
+    // ============ SCREEN CAPTURE TOOLS ============
 
     [McpServerTool, Description("List all available monitors/displays with their index, name, resolution, and position")]
     public static List<MonitorInfo> ListMonitors()
@@ -57,13 +38,13 @@ public static class ScreenCaptureTools
         return _capture.GetWindows();
     }
 
-    [McpServerTool, Description("Capture a screenshot of specified monitor or window (like taking a photo with your eyes). Returns the captured image as base64 JPEG.")]
+    [McpServerTool, Description("Capture a screenshot of specified monitor or window. Returns the captured image as base64 JPEG.")]
     public static ImageContentBlock See(
         [Description("Target type: 'monitor' or 'window'")] string targetType = "monitor",
-        [Description("Monitor index (0=primary, 1=secondary, etc.) - used when targetType='monitor'")] uint monitor = 0,
+        [Description("Monitor index (0=primary) - used when targetType='monitor'")] uint monitor = 0,
         [Description("Window handle (HWND) - used when targetType='window'")] long? hwnd = null,
-        [Description("JPEG quality (1-100, higher=better quality but larger size)")] int quality = 80,
-        [Description("Maximum width in pixels (image will be resized if larger)")] int maxWidth = 1920)
+        [Description("JPEG quality (1-100)")] int quality = 80,
+        [Description("Maximum width in pixels")] int maxWidth = 1920)
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
@@ -80,7 +61,7 @@ public static class ScreenCaptureTools
         };
     }
 
-    [McpServerTool, Description("Capture a screenshot of a specific window by its handle (HWND). Returns the captured image as base64 JPEG.")]
+    [McpServerTool, Description("Capture a screenshot of a specific window by its handle (HWND)")]
     public static ImageContentBlock CaptureWindow(
         [Description("Window handle (HWND) to capture")] long hwnd,
         [Description("JPEG quality (1-100)")] int quality = 80,
@@ -98,14 +79,14 @@ public static class ScreenCaptureTools
         };
     }
 
-    [McpServerTool, Description("Capture a screenshot of a specific screen region. Returns the captured image as base64 JPEG.")]
+    [McpServerTool, Description("Capture a screenshot of a specific screen region")]
     public static ImageContentBlock CaptureRegion(
-        [Description("X coordinate of the region")] int x,
-        [Description("Y coordinate of the region")] int y,
-        [Description("Width of the region")] int w,
-        [Description("Height of the region")] int h,
-        [Description("JPEG quality (1-100)")] int quality = 80,
-        [Description("Maximum width in pixels")] int maxWidth = 1920)
+        [Description("X coordinate")] int x,
+        [Description("Y coordinate")] int y,
+        [Description("Width")] int w,
+        [Description("Height")] int h,
+        [Description("JPEG quality")] int quality = 80,
+        [Description("Maximum width")] int maxWidth = 1920)
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
@@ -119,19 +100,18 @@ public static class ScreenCaptureTools
         };
     }
 
-    [McpServerTool, Description("Start a continuous screen capture stream for a monitor or window (like watching a live video). Returns a session ID.")]
+    [McpServerTool, Description("Start a continuous screen capture stream")]
     public static string StartWatching(
         McpServer server,
         [Description("Target type: 'monitor' or 'window'")] string targetType = "monitor",
-        [Description("Monitor index to watch - used when targetType='monitor'")] uint monitor = 0,
-        [Description("Window handle (HWND) to watch - used when targetType='window'")] long? hwnd = null,
-        [Description("Capture interval in milliseconds (1000=1 second)")] int intervalMs = 1000,
-        [Description("JPEG quality (1-100)")] int quality = 80,
-        [Description("Maximum width in pixels")] int maxWidth = 1920)
+        [Description("Monitor index")] uint monitor = 0,
+        [Description("Window handle")] long? hwnd = null,
+        [Description("Capture interval in milliseconds")] int intervalMs = 1000,
+        [Description("JPEG quality")] int quality = 80,
+        [Description("Maximum width")] int maxWidth = 1920)
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
-        // Setup notification callback for frame streaming
         _capture.OnFrameCaptured = async (sessionId, imageData) =>
         {
             var notificationData = new Dictionary<string, object?>
@@ -154,7 +134,7 @@ public static class ScreenCaptureTools
         return _capture.StartStream(monitor, intervalMs, quality, maxWidth);
     }
 
-    [McpServerTool, Description("Stop a running screen capture stream by session ID")]
+    [McpServerTool, Description("Stop a running screen capture stream")]
     public static string StopWatching(
         [Description("The session ID returned by start_watching")] string sessionId)
     {
@@ -163,9 +143,9 @@ public static class ScreenCaptureTools
         return "Stopped watching";
     }
 
-    [McpServerTool, Description("Get the latest captured frame from a stream session. Returns image data with hash for change detection.")]
+    [McpServerTool, Description("Get the latest captured frame from a stream session")]
     public static object GetLatestFrame(
-        [Description("The session ID returned by start_watching")] string sessionId)
+        [Description("The session ID")] string sessionId)
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
@@ -201,9 +181,9 @@ public static class ScreenCaptureTools
         };
     }
 
-    // ============ NEW UNIFIED TOOLS ============
+    // ============ UNIFIED TOOLS ============
 
-    [McpServerTool, Description("List all available capture targets (monitors and windows) with unified interface")]
+    [McpServerTool, Description("List all available capture targets (monitors and windows)")]
     public static CaptureTargets ListAll(
         [Description("Filter: 'all', 'monitors', 'windows'")] string filter = "all")
     {
@@ -245,14 +225,14 @@ public static class ScreenCaptureTools
 
     [McpServerTool, Description("Capture screen, window, or region as image")]
     public static CaptureResult Capture(
-        [Description("Target type: 'monitor', 'window', 'region', 'primary' (default monitor)")] string target = "primary",
-        [Description("Target identifier: monitor index, hwnd, or 'primary' (default)")] string? targetId = null,
-        [Description("X coordinate for region capture")] int? x = null,
-        [Description("Y coordinate for region capture")] int? y = null,
-        [Description("Width for region capture")] int? w = null,
-        [Description("Height for region capture")] int? h = null,
-        [Description("JPEG quality (1-100)")] int quality = 80,
-        [Description("Maximum width in pixels")] int maxWidth = 1920)
+        [Description("Target type: 'monitor', 'window', 'region', 'primary'")] string target = "primary",
+        [Description("Target identifier")] string? targetId = null,
+        [Description("X coordinate for region")] int? x = null,
+        [Description("Y coordinate for region")] int? y = null,
+        [Description("Width for region")] int? w = null,
+        [Description("Height for region")] int? h = null,
+        [Description("JPEG quality")] int quality = 80,
+        [Description("Maximum width")] int maxWidth = 1920)
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
@@ -279,7 +259,7 @@ public static class ScreenCaptureTools
 
             case "window":
                 if (!long.TryParse(targetId, out var hwnd))
-                    throw new ArgumentException("Invalid window handle (hwnd)");
+                    throw new ArgumentException("Invalid window handle");
                 imageData = _capture.CaptureWindow(hwnd, maxWidth, quality);
                 actualTargetType = "window";
                 actualTargetId = hwnd.ToString();
@@ -287,7 +267,7 @@ public static class ScreenCaptureTools
 
             case "region":
                 if (!x.HasValue || !y.HasValue || !w.HasValue || !h.HasValue)
-                    throw new ArgumentException("Region capture requires x, y, w, h parameters");
+                    throw new ArgumentException("Region capture requires x, y, w, h");
                 imageData = _capture.CaptureRegion(x.Value, y.Value, w.Value, h.Value, maxWidth, quality);
                 actualTargetType = "region";
                 actualTargetId = $"{x.Value},{y.Value},{w.Value},{h.Value}";
@@ -311,20 +291,19 @@ public static class ScreenCaptureTools
         );
     }
 
-    [McpServerTool, Description("Start watching/streaming a target (monitor, window, or region)")]
+    [McpServerTool, Description("Start watching/streaming a target")]
     public static WatchSession Watch(
         McpServer server,
-        [Description("Target type: 'monitor', 'window', 'region'")] string target = "monitor",
-        [Description("Target identifier: monitor index, hwnd, or region coordinates (x,y,w,h)")] string? targetId = null,
-        [Description("Capture interval in milliseconds (minimum 100ms)")] int intervalMs = 1000,
-        [Description("JPEG quality (1-100)")] int quality = 80,
-        [Description("Maximum width in pixels")] int maxWidth = 1920)
+        [Description("Target type: 'monitor', 'window'")] string target = "monitor",
+        [Description("Target identifier")] string? targetId = null,
+        [Description("Capture interval in milliseconds")] int intervalMs = 1000,
+        [Description("JPEG quality")] int quality = 80,
+        [Description("Maximum width")] int maxWidth = 1920)
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
         if (intervalMs < 100)
             throw new ArgumentException("Interval must be at least 100ms");
 
-        // Setup notification callback for frame streaming
         _capture.OnFrameCaptured = async (sessionId, imageData) =>
         {
             var notificationData = new Dictionary<string, object?>
@@ -354,13 +333,13 @@ public static class ScreenCaptureTools
 
             case "window":
                 if (!long.TryParse(targetId, out var hwnd))
-                    throw new ArgumentException("Invalid window handle (hwnd)");
+                    throw new ArgumentException("Invalid window handle");
                 sessionId = _capture.StartWindowStream(hwnd, intervalMs, quality, maxWidth);
                 actualTargetId = hwnd.ToString();
                 break;
 
             default:
-                throw new ArgumentException($"Target type '{target}' not yet supported for watching");
+                throw new ArgumentException($"Target type '{target}' not supported");
         }
 
         return new WatchSession(sessionId, target, actualTargetId, intervalMs, "active");
@@ -368,7 +347,7 @@ public static class ScreenCaptureTools
 
     [McpServerTool, Description("Stop watching a capture session")]
     public static string StopWatch(
-        [Description("The session ID returned by watch")] string sessionId)
+        [Description("The session ID")] string sessionId)
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
         _capture.StopStream(sessionId);
@@ -377,11 +356,7 @@ public static class ScreenCaptureTools
 
     // ============ AUDIO CAPTURE TOOLS ============
 
-    private static AudioCaptureService? _audioCapture;
-
-    public static void SetAudioCaptureService(AudioCaptureService audioCapture) => _audioCapture = audioCapture;
-
-    [McpServerTool, Description("List available audio capture devices (microphones and system audio)")]
+    [McpServerTool, Description("List available audio capture devices")]
     public static List<AudioDeviceInfo> ListAudioDevices()
     {
         return AudioCaptureService.GetAudioDevices();
@@ -390,25 +365,22 @@ public static class ScreenCaptureTools
     [McpServerTool, Description("Start audio capture from system or microphone")]
     public static AudioSession StartAudioCapture(
         [Description("Source: 'system', 'microphone', 'both'")] string source = "system",
-        [Description("Sample rate: 16000, 44100, 48000")] int sampleRate = 44100,
-        [Description("Microphone device index (when source='microphone' or 'both')")] int deviceIndex = 0)
+        [Description("Sample rate")] int sampleRate = 44100,
+        [Description("Microphone device index")] int deviceIndex = 0)
     {
-        if (_audioCapture == null)
-        {
-            _audioCapture = new AudioCaptureService();
-        }
+        _audioCapture ??= new AudioCaptureService();
 
         if (!Enum.TryParse<AudioCaptureSource>(source, true, out var sourceEnum))
         {
-            throw new ArgumentException($"Invalid audio source: {source}. Use 'system', 'microphone', or 'both'.");
+            throw new ArgumentException($"Invalid source: {source}");
         }
 
         return _audioCapture.StartCapture(sourceEnum, sampleRate, deviceIndex);
     }
 
-    [McpServerTool, Description("Stop audio capture and return captured audio data")]
+    [McpServerTool, Description("Stop audio capture and return captured audio")]
     public static AudioCaptureResult StopAudioCapture(
-        [Description("The session ID returned by start_audio_capture")] string sessionId,
+        [Description("Session ID")] string sessionId,
         [Description("Return format: 'base64', 'file_path'")] string returnFormat = "base64")
     {
         if (_audioCapture == null)
@@ -416,46 +388,34 @@ public static class ScreenCaptureTools
             throw new InvalidOperationException("AudioCaptureService not initialized");
         }
 
-        var result = _audioCapture.StopCapture(sessionId, returnFormat == "base64");
-        return result;
+        return _audioCapture.StopCapture(sessionId, returnFormat == "base64");
     }
 
     [McpServerTool, Description("Get list of active audio capture sessions")]
     public static List<AudioSession> GetActiveAudioSessions()
     {
-        if (_audioCapture == null)
-        {
-            return new List<AudioSession>();
-        }
-
-        return _audioCapture.GetActiveSessions();
+        return _audioCapture?.GetActiveSessions() ?? new List<AudioSession>();
     }
 
     // ============ WHISPER SPEECH RECOGNITION TOOLS ============
 
-    private static WhisperTranscriptionService? _whisperService;
-
-    public static void SetWhisperService(WhisperTranscriptionService whisperService) => _whisperService = whisperService;
-
     [McpServerTool, Description("Transcribe audio to text using Whisper AI")]
     public static TranscriptionResult Listen(
-        [Description("Audio source: 'microphone', 'system', 'file', 'audio_session'")] string source = "system",
-        [Description("For 'file': path to audio file. For 'audio_session': session ID from start_audio_capture")] string? sourceId = null,
-        [Description("Language code (auto=auto-detect, ja=Japanese, en=English, etc.)")] string language = "auto",
-        [Description("Recording duration in seconds (for 'microphone' or 'system' sources)")] int duration = 10,
+        [Description("Source: 'microphone', 'system', 'file', 'audio_session'")] string source = "system",
+        [Description("Source ID")] string? sourceId = null,
+        [Description("Language code")] string language = "auto",
+        [Description("Recording duration in seconds")] int duration = 10,
         [Description("Model size: 'tiny', 'base', 'small', 'medium', 'large'")] string modelSize = "base",
         [Description("Translate to English")] bool translate = false)
     {
         if (_whisperService == null)
         {
-            Console.Error.WriteLine("[Listen] ERROR: WhisperTranscriptionService is null!");
             throw new InvalidOperationException("WhisperTranscriptionService not initialized");
         }
 
-        // Parse model size
         if (!Enum.TryParse<WhisperModelSize>(modelSize, true, out var modelSizeEnum))
         {
-            throw new ArgumentException($"Invalid model size: {modelSize}. Use 'tiny', 'base', 'small', 'medium', or 'large'.");
+            throw new ArgumentException($"Invalid model size: {modelSize}");
         }
 
         string? audioFilePath = null;
@@ -468,7 +428,7 @@ public static class ScreenCaptureTools
                 case "file":
                     if (string.IsNullOrEmpty(sourceId))
                     {
-                        throw new ArgumentException("sourceId is required when source='file'");
+                        throw new ArgumentException("sourceId required when source='file'");
                     }
                     audioFilePath = sourceId;
                     if (!File.Exists(audioFilePath))
@@ -484,7 +444,7 @@ public static class ScreenCaptureTools
                     }
                     if (string.IsNullOrEmpty(sourceId))
                     {
-                        throw new ArgumentException("sourceId (session ID) is required when source='audio_session'");
+                        throw new ArgumentException("sourceId required when source='audio_session'");
                     }
                     var audioResult = _audioCapture.StopCapture(sourceId, false);
                     audioFilePath = Path.Combine(Path.GetTempPath(), $"whisper_temp_{Guid.NewGuid()}.wav");
@@ -494,11 +454,7 @@ public static class ScreenCaptureTools
 
                 case "microphone":
                 case "system":
-                    // Record audio first
-                    if (_audioCapture == null)
-                    {
-                        _audioCapture = new AudioCaptureService();
-                    }
+                    _audioCapture ??= new AudioCaptureService();
                     var captureSource = source.ToLower() == "microphone" ? AudioCaptureSource.Microphone : AudioCaptureSource.System;
                     var session = _audioCapture.StartCapture(captureSource, 16000);
 
@@ -506,24 +462,21 @@ public static class ScreenCaptureTools
                     Thread.Sleep(TimeSpan.FromSeconds(duration));
 
                     var capturedAudio = _audioCapture.StopCapture(session.SessionId, false);
-                    // Use the original WAV file path directly
                     audioFilePath = capturedAudio.OutputPath;
                     if (string.IsNullOrEmpty(audioFilePath) || !File.Exists(audioFilePath))
                     {
                         throw new InvalidOperationException("Audio file not found after capture");
                     }
-                    shouldCleanup = false; // Don't delete the original file, let AudioCaptureService handle it
+                    shouldCleanup = false;
                     break;
 
                 default:
-                    throw new ArgumentException($"Unknown source: {source}. Use 'microphone', 'system', 'file', or 'audio_session'.");
+                    throw new ArgumentException($"Unknown source: {source}");
             }
 
-            // Transcribe
             Console.WriteLine($"[Listen] Transcribing with {modelSize} model...");
             var langCode = language == "auto" ? null : language;
 
-            // Run transcription synchronously
             var result = _whisperService.TranscribeFileAsync(
                 audioFilePath,
                 langCode,
@@ -537,12 +490,10 @@ public static class ScreenCaptureTools
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[Listen] ERROR: {ex.GetType().Name}: {ex.Message}");
-            Console.Error.WriteLine($"[Listen] Stack trace: {ex.StackTrace}");
             throw;
         }
         finally
         {
-            // Cleanup temp file if we created it
             if (shouldCleanup && audioFilePath != null && File.Exists(audioFilePath))
             {
                 try
@@ -571,5 +522,99 @@ public static class ScreenCaptureTools
         }
 
         return result;
+    }
+
+    // ============ INPUT TOOLS ============
+
+    [McpServerTool, Description("Move mouse cursor to absolute position")]
+    public static void MouseMove(
+        [Description("X coordinate")] int x,
+        [Description("Y coordinate")] int y)
+    {
+        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+        _inputService.MoveMouse(x, y);
+    }
+
+    [McpServerTool, Description("Click mouse button")]
+    public static void MouseClick(
+        [Description("Button: 'left', 'right', 'middle'")] string button = "left",
+        [Description("Click count")] int count = 1)
+    {
+        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+
+        var mouseButton = button.ToLower() switch
+        {
+            "left" => MouseButton.Left,
+            "right" => MouseButton.Right,
+            "middle" => MouseButton.Middle,
+            _ => MouseButton.Left
+        };
+
+        _inputService.ClickMouse(mouseButton, count);
+    }
+
+    [McpServerTool, Description("Drag mouse from start to end position")]
+    public static void MouseDrag(
+        [Description("Start X")] int startX,
+        [Description("Start Y")] int startY,
+        [Description("End X")] int endX,
+        [Description("End Y")] int endY)
+    {
+        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+        _inputService.DragMouse(startX, startY, endX, endY);
+    }
+
+    [McpServerTool, Description("Type text (direct input)")]
+    public static void KeyboardType(
+        [Description("Text to type")] string text)
+    {
+        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+        _inputService.TypeText(text);
+    }
+
+    [McpServerTool, Description("Press a special key")]
+    public static void KeyboardKey(
+        [Description("Key name (enter, tab, escape, etc.)")] string key,
+        [Description("Action: 'press', 'release', 'click'")] string action = "click")
+    {
+        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+
+        var keyAction = action.ToLower() switch
+        {
+            "press" => KeyAction.Press,
+            "release" => KeyAction.Release,
+            "click" => KeyAction.Click,
+            _ => KeyAction.Click
+        };
+
+        var virtualKey = key.ToLower() switch
+        {
+            "enter" => InputService.VirtualKeys.Enter,
+            "return" => InputService.VirtualKeys.Enter,
+            "tab" => InputService.VirtualKeys.Tab,
+            "escape" => InputService.VirtualKeys.Escape,
+            "esc" => InputService.VirtualKeys.Escape,
+            "space" => InputService.VirtualKeys.Space,
+            "backspace" => InputService.VirtualKeys.Backspace,
+            "delete" => InputService.VirtualKeys.Delete,
+            "del" => InputService.VirtualKeys.Delete,
+            "left" => InputService.VirtualKeys.Left,
+            "up" => InputService.VirtualKeys.Up,
+            "right" => InputService.VirtualKeys.Right,
+            "down" => InputService.VirtualKeys.Down,
+            "home" => InputService.VirtualKeys.Home,
+            "end" => InputService.VirtualKeys.End,
+            "pageup" => InputService.VirtualKeys.PageUp,
+            "pagedown" => InputService.VirtualKeys.PageDown,
+            "shift" => InputService.VirtualKeys.Shift,
+            "ctrl" => InputService.VirtualKeys.Control,
+            "control" => InputService.VirtualKeys.Control,
+            "alt" => InputService.VirtualKeys.Alt,
+            "win" => InputService.VirtualKeys.Win,
+            "windows" => InputService.VirtualKeys.Win,
+            _ => throw new ArgumentException($"Unknown key: {key}")
+        };
+
+        _inputService.PressKey(virtualKey, keyAction);
     }
 }

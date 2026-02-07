@@ -1,43 +1,9 @@
 using System.Collections.Concurrent;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using WindowsDesktopUse.Core;
 
-/// <summary>
-/// Audio capture source type
-/// </summary>
-public enum AudioCaptureSource
-{
-    /// <summary>System audio output (loopback)</summary>
-    System,
-    /// <summary>Microphone input</summary>
-    Microphone,
-    /// <summary>Both system and microphone mixed</summary>
-    Both
-}
-
-/// <summary>
-/// Audio session information
-/// </summary>
-public record AudioSession(
-    string SessionId,
-    AudioCaptureSource Source,
-    string Status,
-    DateTime StartTime,
-    string? OutputPath = null
-);
-
-/// <summary>
-/// Audio capture result
-/// </summary>
-public record AudioCaptureResult(
-    string SessionId,
-    string AudioDataBase64,
-    string Format,
-    int SampleRate,
-    int Channels,
-    TimeSpan Duration,
-    string? OutputPath = null
-);
+namespace WindowsDesktopUse.Audio;
 
 /// <summary>
 /// Service for capturing audio from system or microphone
@@ -57,7 +23,6 @@ public class AudioCaptureService : IDisposable
     {
         var devices = new List<AudioDeviceInfo>();
 
-        // Get microphone devices
         for (int i = 0; i < WaveIn.DeviceCount; i++)
         {
             var capabilities = WaveIn.GetCapabilities(i);
@@ -69,13 +34,12 @@ public class AudioCaptureService : IDisposable
             ));
         }
 
-        // Check if loopback is available (Windows Vista+)
         try
         {
             using var enumerator = new MMDeviceEnumerator();
             var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             devices.Add(new AudioDeviceInfo(
-                -1, // Special index for system audio
+                -1,
                 "System Audio (Loopback)",
                 "system",
                 defaultDevice.AudioClient.MixFormat.Channels
@@ -83,7 +47,6 @@ public class AudioCaptureService : IDisposable
         }
         catch
         {
-            // Loopback not available
         }
 
         return devices;
@@ -118,8 +81,6 @@ public class AudioCaptureService : IDisposable
                     break;
 
                 case AudioCaptureSource.Both:
-                    // For both, we'll capture system audio as primary
-                    // and mix microphone in later if needed
                     capture = new WasapiLoopbackCapture();
                     break;
 
@@ -175,31 +136,25 @@ public class AudioCaptureService : IDisposable
             throw new ArgumentException($"Audio session {sessionId} not found");
         }
 
-        // Stop recording first
         if (_captures.TryRemove(sessionId, out var capture))
         {
             capture.StopRecording();
         }
 
-        // Wait a moment for the RecordingStopped event to complete
         Thread.Sleep(100);
 
-        // Close writer - this finalizes the WAV file with proper headers
         if (_writers.TryRemove(sessionId, out var writer))
         {
             writer.Dispose();
         }
 
-        // Dispose capture
         capture?.Dispose();
 
-        // Clean up buffer (we don't use it for return - file has proper WAV headers)
         if (_buffers.TryRemove(sessionId, out var buffer))
         {
             buffer.Dispose();
         }
 
-        // Read the properly formatted WAV file
         byte[] audioData;
         if (session.OutputPath != null && File.Exists(session.OutputPath))
         {
@@ -210,22 +165,19 @@ public class AudioCaptureService : IDisposable
             throw new InvalidOperationException("Audio file not found after capture");
         }
 
-        // Calculate duration
         var duration = DateTime.UtcNow - session.StartTime;
 
-        // Update session status
         _sessions.TryUpdate(sessionId,
             session with { Status = "completed" },
             session);
 
-        // Convert to base64 if requested
         string audioBase64 = returnBase64 ? Convert.ToBase64String(audioData) : "";
 
         return new AudioCaptureResult(
             sessionId,
             audioBase64,
             "wav",
-            44100, // Default sample rate
+            44100,
             session.Source == AudioCaptureSource.Microphone ? 1 : 2,
             duration,
             session.OutputPath
@@ -252,7 +204,6 @@ public class AudioCaptureService : IDisposable
     {
         if (!_disposed)
         {
-            // Stop all active captures
             foreach (var sessionId in _captures.Keys.ToList())
             {
                 try
@@ -266,13 +217,3 @@ public class AudioCaptureService : IDisposable
         }
     }
 }
-
-/// <summary>
-/// Audio device information
-/// </summary>
-public record AudioDeviceInfo(
-    int Index,
-    string Name,
-    string Type,
-    int Channels
-);
