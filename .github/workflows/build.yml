@@ -19,13 +19,17 @@ jobs:
         dotnet-version: '8.0.x'
     
     - name: Restore dependencies
-      run: dotnet restore WindowsDesktopUse.sln
+      run: |
+        echo "Current directory: $(pwd)"
+        echo "Solution files found:"
+        ls -la *.sln 2>/dev/null || echo "No .sln files in root"
+        dotnet restore ./WindowsDesktopUse.sln
     
     - name: Build
-      run: dotnet build WindowsDesktopUse.sln -c Release --no-restore
+      run: dotnet build ./WindowsDesktopUse.sln -c Release --no-restore
     
     - name: Test
-      run: dotnet test WindowsDesktopUse.sln -c Release --no-build --verbosity normal --filter "TestCategory!=Explicit"
+      run: dotnet test ./WindowsDesktopUse.sln -c Release --no-build --verbosity normal --filter "TestCategory!=Explicit"
     
     - name: Publish single-file
       run: |
