@@ -18,6 +18,12 @@ dotnet build src/WindowsDesktopUse.App/WindowsDesktopUse.App.csproj -c Release
 ```
 
 ### 2. Claude Desktop の設定
+**方法 A: 自動セットアップ**
+```powershell
+WindowsDesktopUse.App.exe setup
+```
+
+**方法 B: 手動設定**
 `%AppData%\Roaming\Claude\claude_desktop_config.json` に以下を追加します：
 ```json
 {
@@ -28,6 +34,37 @@ dotnet build src/WindowsDesktopUse.App/WindowsDesktopUse.App.csproj -c Release
     }
   }
 }
+```
+
+### 3. インストール確認
+```powershell
+WindowsDesktopUse.App.exe doctor
+```
+
+## CLI コマンド
+
+### `doctor` - システム診断
+システム互換性と設定を確認します。
+```powershell
+WindowsDesktopUse.App.exe doctor
+WindowsDesktopUse.App.exe doctor --verbose    # 詳細な情報を表示
+WindowsDesktopUse.App.exe doctor --json       # JSON 形式で出力
+```
+
+### `setup` - Claude Desktop 設定
+Claude Desktop の統合を自動的に設定します。
+```powershell
+WindowsDesktopUse.App.exe setup                              # デフォルトの設定パスを使用
+WindowsDesktopUse.App.exe setup --config-path "C:\custom\path.json"  # カスタム設定パス
+WindowsDesktopUse.App.exe setup --no-merge                    # 既存の設定を上書き
+WindowsDesktopUse.App.exe setup --dry-run                    # 設定をファイルに書き込まずに表示
+```
+
+### `whisper` - Whisper AI モデル
+音声文字起こし用の Whisper AI モデルを管理します。
+```powershell
+WindowsDesktopUse.App.exe whisper          # 利用可能なモデル一覧とインストール状態を確認
+WindowsDesktopUse.App.exe whisper --list   # モデル一覧のみ表示
 ```
 
 ## 利用可能な MCP ツール（概要）

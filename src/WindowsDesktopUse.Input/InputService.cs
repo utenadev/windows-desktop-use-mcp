@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Diagnostics;
 
 namespace WindowsDesktopUse.Input;
 
@@ -328,13 +327,13 @@ public class InputService
         public const ushort Space = 0x20;
         public const ushort Backspace = 0x08;
         public const ushort Delete = 0x2E;
-        
+
         // Arrow keys
         public const ushort Left = 0x25;
         public const ushort Up = 0x26;
         public const ushort Right = 0x27;
         public const ushort Down = 0x28;
-        
+
         // Page/Line navigation
         public const ushort Home = 0x24;
         public const ushort End = 0x23;

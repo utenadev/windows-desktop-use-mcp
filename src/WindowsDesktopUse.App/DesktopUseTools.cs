@@ -1,11 +1,11 @@
 using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using WindowsDesktopUse.Core;
-using WindowsDesktopUse.Screen;
 using WindowsDesktopUse.Audio;
-using WindowsDesktopUse.Transcription;
+using WindowsDesktopUse.Core;
 using WindowsDesktopUse.Input;
+using WindowsDesktopUse.Screen;
+using WindowsDesktopUse.Transcription;
 
 namespace WindowsDesktopUse.App;
 

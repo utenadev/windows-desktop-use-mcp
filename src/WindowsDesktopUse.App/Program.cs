@@ -1,12 +1,13 @@
 using System.CommandLine;
-using System.Runtime.InteropServices;
-using System.Globalization;
 using System.Diagnostics;
-using WindowsDesktopUse.Screen;
-using WindowsDesktopUse.Audio;
-using WindowsDesktopUse.Transcription;
-using WindowsDesktopUse.Input;
+using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
 using WindowsDesktopUse.App;
+using WindowsDesktopUse.Audio;
+using WindowsDesktopUse.Input;
+using WindowsDesktopUse.Screen;
+using WindowsDesktopUse.Transcription;
 
 [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
@@ -16,132 +17,390 @@ var isJapanese = currentCulture.Name.StartsWith("ja", StringComparison.OrdinalIg
 
 string GetText(string en, string ja) => isJapanese ? ja : en;
 
+bool IsRunningAsAdmin()
+{
+    using var identity = WindowsIdentity.GetCurrent();
+    var principal = new WindowsPrincipal(identity);
+    return principal.IsInRole(WindowsBuiltInRole.Administrator);
+}
+
 // Create subcommands
 var doctorCmd = new Command("doctor", GetText("Diagnose system compatibility", "システム互換性を診断"));
 var setupCmd = new Command("setup", GetText("Configure Claude Desktop integration", "Claude Desktop統合を設定"));
-var whisperCmd = new Command("whisper", GetText("Configure Whisper AI models", "Whisper AIモデルを設定"));
+var whisperCmd = new Command("whisper", GetText("Manage Whisper AI models", "Whisper AIモデルを管理"));
+
+// Whisper command options
+var whisperListOption = new Option<bool>(
+    name: "--list",
+    description: GetText("Show list of available models only", "利用可能なモデル一覧のみ表示"),
+    getDefaultValue: () => false);
+whisperCmd.AddOption(whisperListOption);
+
+// Doctor command options
+var doctorVerboseOption = new Option<bool>(
+    name: "--verbose",
+    description: GetText("Show detailed diagnostic information", "詳細な診断情報を表示"),
+    getDefaultValue: () => false);
+var doctorJsonOption = new Option<bool>(
+    name: "--json",
+    description: GetText("Output results in JSON format", "結果をJSON形式で出力"),
+    getDefaultValue: () => false);
+doctorCmd.AddOption(doctorVerboseOption);
+doctorCmd.AddOption(doctorJsonOption);
+
+// Setup command options  
+var setupConfigPathOption = new Option<string?>(
+    name: "--config-path",
+    description: GetText("Custom path for Claude Desktop config file", "Claude Desktop設定ファイルのカスタムパス"),
+    getDefaultValue: () => null);
+var setupNoMergeOption = new Option<bool>(
+    name: "--no-merge",
+    description: GetText("Overwrite existing config instead of merging", "マージせず既存の設定を上書き"),
+    getDefaultValue: () => false);
+var setupDryRunOption = new Option<bool>(
+    name: "--dry-run",
+    description: GetText("Show generated config without writing to file", "設定をファイルに書き込まずに表示"),
+    getDefaultValue: () => false);
+setupCmd.AddOption(setupConfigPathOption);
+setupCmd.AddOption(setupNoMergeOption);
+setupCmd.AddOption(setupDryRunOption);
 
 // Doctor command
-doctorCmd.SetHandler(() =>
+doctorCmd.SetHandler((bool verbose, bool json) =>
 {
-    Console.WriteLine(GetText(
-        "🔍 Windows Desktop Use - System Diagnostics",
-        "🔍 Windows Desktop Use - システム診断"));
-    Console.WriteLine(GetText(
-        "==========================================",
-        "=========================================="));
-    Console.WriteLine();
-
-    var hasError = false;
-    var hasWarning = false;
-
-    // Check OS
-    Console.WriteLine($"✓ {GetText("Operating System", "オペレーティングシステム")}: {Environment.OSVersion}");
-    if (Environment.OSVersion.Version.Major >= 10)
+    if (json)
     {
-        Console.WriteLine($"  ✓ {GetText("Windows 10/11 detected", "Windows 10/11を検出")}");
+        var result = new Dictionary<string, object>
+        {
+            ["status"] = "ok",
+            ["checks"] = new List<Dictionary<string, object>>()
+        };
+        var hasError = false;
+        var hasWarning = false;
+
+        // OS check
+        var osCheck = new Dictionary<string, object>
+        {
+            ["name"] = "operating_system",
+            ["status"] = "pass",
+            ["version"] = Environment.OSVersion.ToString()
+        };
+        if (Environment.OSVersion.Version.Major >= 10)
+        {
+            osCheck["message"] = GetText("Windows 10/11 detected", "Windows 10/11を検出");
+        }
+        else
+        {
+            osCheck["status"] = "error";
+            osCheck["message"] = GetText("Windows 10 or later required", "Windows 10以降が必要");
+            hasError = true;
+        }
+        ((List<Dictionary<string, object>>)result["checks"]).Add(osCheck);
+
+        // Admin privilege check
+        var isAdmin = IsRunningAsAdmin();
+        var adminCheck = new Dictionary<string, object>
+        {
+            ["name"] = "administrator_privileges",
+            ["status"] = isAdmin ? "pass" : "warning",
+            ["isAdmin"] = isAdmin
+        };
+        if (isAdmin)
+        {
+            adminCheck["message"] = GetText("Running with administrator privileges", "管理者権限で実行中");
+        }
+        else
+        {
+            adminCheck["message"] = GetText("Running without administrator privileges", "管理者権限なしで実行中");
+            adminCheck["note"] = GetText("Some features may require administrator privileges", "一部の機能には管理者権限が必要");
+        }
+        ((List<Dictionary<string, object>>)result["checks"]).Add(adminCheck);
+        if (!isAdmin) hasWarning = true;
+
+        // .NET check
+        ((List<Dictionary<string, object>>)result["checks"]).Add(new Dictionary<string, object>
+        {
+            ["name"] = "dotnet_runtime",
+            ["status"] = "pass",
+            ["version"] = Environment.Version.ToString()
+        });
+
+        // Monitors check
+        try
+        {
+            SetProcessDPIAware();
+            var captureService = new ScreenCaptureService(0);
+            captureService.InitializeMonitors();
+            var monitors = captureService.GetMonitors();
+            ((List<Dictionary<string, object>>)result["checks"]).Add(new Dictionary<string, object>
+            {
+                ["name"] = "monitors",
+                ["status"] = "pass",
+                ["count"] = monitors.Count,
+                ["monitors"] = monitors.Select(m => new
+                {
+                    name = m.Name,
+                    width = m.W,
+                    height = m.H,
+                    x = m.X,
+                    y = m.Y
+                }).ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            var monitorCheck = new Dictionary<string, object>
+            {
+                ["name"] = "monitors",
+                ["status"] = "error",
+                ["message"] = GetText("Screen capture test failed", "画面キャプチャテスト失敗"),
+                ["error"] = ex.Message
+            };
+            if (verbose) monitorCheck["stackTrace"] = ex.StackTrace;
+            ((List<Dictionary<string, object>>)result["checks"]).Add(monitorCheck);
+            hasError = true;
+        }
+
+        // Audio devices check
+        try
+        {
+            var devices = AudioCaptureService.GetAudioDevices();
+            ((List<Dictionary<string, object>>)result["checks"]).Add(new Dictionary<string, object>
+            {
+                ["name"] = "audio_devices",
+                ["status"] = "pass",
+                ["count"] = devices.Count
+            });
+        }
+        catch (Exception ex)
+        {
+            var audioCheck = new Dictionary<string, object>
+            {
+                ["name"] = "audio_devices",
+                ["status"] = "warning",
+                ["message"] = GetText("Audio device detection failed", "オーディオデバイス検出失敗"),
+                ["error"] = ex.Message
+            };
+            if (!isAdmin)
+            {
+                audioCheck["note"] = GetText("This may require administrator privileges", "これは管理者権限が必要な可能性があります");
+                audioCheck["suggestion"] = GetText("Run as administrator", "管理者として実行してください");
+            }
+            if (verbose) audioCheck["stackTrace"] = ex.StackTrace;
+            ((List<Dictionary<string, object>>)result["checks"]).Add(audioCheck);
+            hasWarning = true;
+        }
+
+        // Whisper models check
+        try
+        {
+            var modelDir = Path.Combine(AppContext.BaseDirectory, "models");
+            var whisperCheck = new Dictionary<string, object>
+            {
+                ["name"] = "whisper_models",
+                ["status"] = "warning",
+                ["message"] = GetText("Model directory not found", "モデルディレクトリが見つかりません")
+            };
+            if (Directory.Exists(modelDir))
+            {
+                var models = Directory.GetFiles(modelDir, "*.bin");
+                if (models.Length > 0)
+                {
+                    whisperCheck["status"] = "pass";
+                    whisperCheck["message"] = GetText($"{models.Length} model(s) found", $"{models.Length}個のモデルを検出");
+                    whisperCheck["models"] = models.Select(m => new
+                    {
+                        name = Path.GetFileName(m),
+                        sizeMb = new FileInfo(m).Length / (1024 * 1024)
+                    }).ToList();
+                }
+                else
+                {
+                    whisperCheck["message"] = GetText("No models found. Run 'WindowsDesktopUse whisper' to download.", "モデルが見つかりません。'WindowsDesktopUse whisper'でダウンロードしてください。");
+                }
+            }
+            ((List<Dictionary<string, object>>)result["checks"]).Add(whisperCheck);
+        }
+        catch (Exception ex)
+        {
+            var whisperCheck = new Dictionary<string, object>
+            {
+                ["name"] = "whisper_models",
+                ["status"] = "warning",
+                ["message"] = GetText("Whisper check failed", "Whisperチェック失敗"),
+                ["error"] = ex.Message
+            };
+            if (verbose) whisperCheck["stackTrace"] = ex.StackTrace;
+            ((List<Dictionary<string, object>>)result["checks"]).Add(whisperCheck);
+            hasWarning = true;
+        }
+
+        if (hasError) result["status"] = "error";
+        else if (hasWarning) result["status"] = "warning";
+
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(result, jsonOptions));
+        Environment.Exit(hasError ? 1 : 0);
     }
     else
     {
-        Console.WriteLine($"  ✗ {GetText("Windows 10 or later required", "Windows 10以降が必要")}");
-        hasError = true;
-    }
+        Console.WriteLine(GetText(
+            "🔍 Windows Desktop Use - System Diagnostics",
+            "🔍 Windows Desktop Use - システム診断"));
+        Console.WriteLine(GetText(
+            "==========================================",
+            "=========================================="));
+        Console.WriteLine();
 
-    // Check .NET
-    Console.WriteLine($"✓ {GetText(".NET Runtime", ".NETランタイム")}: {Environment.Version}");
-    
-    // Check monitors
-    try
-    {
-        SetProcessDPIAware();
-        var captureService = new ScreenCaptureService(0);
-        captureService.InitializeMonitors();
-        var monitors = captureService.GetMonitors();
-        Console.WriteLine($"✓ {GetText("Displays detected", "ディスプレイ検出")}: {monitors.Count}");
-        foreach (var mon in monitors)
+        var hasError = false;
+        var hasWarning = false;
+
+        // Check OS
+        Console.WriteLine($"✓ {GetText("Operating System", "オペレーティングシステム")}: {Environment.OSVersion}");
+        if (Environment.OSVersion.Version.Major >= 10)
         {
-            Console.WriteLine($"  - {mon.Name}: {mon.W}x{mon.H} at ({mon.X},{mon.Y})");
+            Console.WriteLine($"  ✓ {GetText("Windows 10/11 detected", "Windows 10/11を検出")}");
         }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"  ✗ {GetText("Screen capture test failed", "画面キャプチャテスト失敗")}: {ex.Message}");
-        hasError = true;
-    }
-
-    // Check audio devices
-    try
-    {
-        var devices = AudioCaptureService.GetAudioDevices();
-        Console.WriteLine($"✓ {GetText("Audio devices", "オーディオデバイス")}: {devices.Count}");
-    }
-    catch
-    {
-        Console.WriteLine($"  ⚠ {GetText("Audio device detection skipped (may require admin)", "オーディオデバイス検出をスキップ（管理者権限が必要）")}");
-        hasWarning = true;
-    }
-
-    // Check Whisper models
-    Console.WriteLine($"✓ {GetText("Whisper AI Models", "Whisper AIモデル")}:");
-    try
-    {
-        var modelDir = Path.Combine(AppContext.BaseDirectory, "models");
-        if (Directory.Exists(modelDir))
+        else
         {
-            var models = Directory.GetFiles(modelDir, "*.bin");
-            if (models.Length > 0)
+            Console.WriteLine($"  ✗ {GetText("Windows 10 or later required", "Windows 10以降が必要")}");
+            hasError = true;
+        }
+
+        // Check .NET
+        Console.WriteLine($"✓ {GetText(".NET Runtime", ".NETランタイム")}: {Environment.Version}");
+
+        // Check administrator privileges
+        var isAdmin = IsRunningAsAdmin();
+        if (isAdmin)
+        {
+            Console.WriteLine($"✓ {GetText("Administrator Privileges", "管理者権限")}: {GetText("Enabled", "有効")}");
+            Console.WriteLine($"  ✓ {GetText("Running with administrator privileges", "管理者権限で実行中")}");
+        }
+        else
+        {
+            Console.WriteLine($"⚠ {GetText("Administrator Privileges", "管理者権限")}: {GetText("Not available", "なし")}");
+            Console.WriteLine($"  ⚠ {GetText("Running without administrator privileges", "管理者権限なしで実行中")}");
+            Console.WriteLine($"  ⚠ {GetText("Some features may require administrator privileges", "一部の機能には管理者権限が必要")}");
+            hasWarning = true;
+        }
+
+        // Check monitors
+        try
+        {
+            SetProcessDPIAware();
+            var captureService = new ScreenCaptureService(0);
+            captureService.InitializeMonitors();
+            var monitors = captureService.GetMonitors();
+            Console.WriteLine($"✓ {GetText("Displays detected", "ディスプレイ検出")}: {monitors.Count}");
+            foreach (var mon in monitors)
             {
-                Console.WriteLine($"  ✓ {GetText($"{models.Length} model(s) found", $"{models.Length}個のモデルを検出")}");
-                foreach (var model in models)
+                Console.WriteLine($"  - {mon.Name}: {mon.W}x{mon.H} at ({mon.X},{mon.Y})");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ✗ {GetText("Screen capture test failed", "画面キャプチャテスト失敗")}: {ex.Message}");
+            if (verbose) Console.WriteLine($"    {ex.StackTrace}");
+            hasError = true;
+        }
+
+        // Check audio devices
+        try
+        {
+            var devices = AudioCaptureService.GetAudioDevices();
+            Console.WriteLine($"✓ {GetText("Audio devices", "オーディオデバイス")}: {devices.Count}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠ {GetText("Audio device detection failed", "オーディオデバイス検出失敗")}: {ex.Message}");
+            if (!isAdmin)
+            {
+                Console.WriteLine($"  ⚠ {GetText("This may require administrator privileges", "これは管理者権限が必要な可能性があります")}");
+                Console.WriteLine($"  ⚠ {GetText("Please run as administrator: Right-click -> Run as administrator", "管理者として実行してください：右クリック -> 管理者として実行")}");
+            }
+            if (verbose) Console.WriteLine($"    {ex.StackTrace}");
+            hasWarning = true;
+        }
+
+        // Check Whisper models
+        Console.WriteLine($"✓ {GetText("Whisper AI Models", "Whisper AIモデル")}:");
+        try
+        {
+            var modelDir = Path.Combine(AppContext.BaseDirectory, "models");
+            if (Directory.Exists(modelDir))
+            {
+                var models = Directory.GetFiles(modelDir, "*.bin");
+                if (models.Length > 0)
                 {
-                    var fileName = Path.GetFileName(model);
-                    var size = new FileInfo(model).Length / (1024 * 1024);
-                    Console.WriteLine($"    - {fileName} ({size} MB)");
+                    Console.WriteLine($"  ✓ {GetText($"{models.Length} model(s) found", $"{models.Length}個のモデルを検出")}");
+                    foreach (var model in models)
+                    {
+                        var fileName = Path.GetFileName(model);
+                        var size = new FileInfo(model).Length / (1024 * 1024);
+                        if (verbose)
+                        {
+                            var fullPath = Path.GetFullPath(model);
+                            Console.WriteLine($"    - {fileName} ({size} MB)");
+                            Console.WriteLine($"      Path: {fullPath}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"    - {fileName} ({size} MB)");
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"  ⚠ {GetText("No models found. Run 'WindowsDesktopUse whisper' to download.", "モデルが見つかりません。'WindowsDesktopUse whisper'でダウンロードしてください。")}");
+                    hasWarning = true;
                 }
             }
             else
             {
-                Console.WriteLine($"  ⚠ {GetText("No models found. Run 'WindowsDesktopUse whisper' to download.", "モデルが見つかりません。'WindowsDesktopUse whisper'でダウンロードしてください。")}");
+                Console.WriteLine($"  ⚠ {GetText("Model directory not found. Run 'WindowsDesktopUse whisper' to setup.", "モデルディレクトリが見つかりません。'WindowsDesktopUse whisper'でセットアップしてください。")}");
                 hasWarning = true;
             }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine($"  ⚠ {GetText("Model directory not found. Run 'WindowsDesktopUse whisper' to setup.", "モデルディレクトリが見つかりません。'WindowsDesktopUse whisper'でセットアップしてください。")}");
+            Console.WriteLine($"  ⚠ {GetText("Whisper check failed", "Whisperチェック失敗")}: {ex.Message}");
+            if (verbose) Console.WriteLine($"    {ex.StackTrace}");
             hasWarning = true;
         }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"  ⚠ {GetText("Whisper check failed", "Whisperチェック失敗")}: {ex.Message}");
-        hasWarning = true;
-    }
 
-    Console.WriteLine();
-    if (hasError)
-    {
-        Console.WriteLine(GetText("❌ Diagnostics completed with errors", "❌ 診断がエラーで完了しました"));
-        Environment.Exit(1);
-    }
-    else if (hasWarning)
-    {
-        Console.WriteLine(GetText("⚠️  Diagnostics completed with warnings", "⚠️  診断が警告付きで完了しました"));
         Console.WriteLine();
-        Console.WriteLine(GetText("You can continue, but some features may not work correctly.", "続行できますが、一部の機能が正常に動作しない可能性があります。"));
+        if (hasError)
+        {
+            Console.WriteLine(GetText("❌ Diagnostics completed with errors", "❌ 診断がエラーで完了しました"));
+            Environment.Exit(1);
+        }
+        else if (hasWarning)
+        {
+            Console.WriteLine(GetText("⚠️  Diagnostics completed with warnings", "⚠️  診断が警告付きで完了しました"));
+            Console.WriteLine();
+            Console.WriteLine(GetText("You can continue, but some features may not work correctly.", "続行できますが、一部の機能が正常に動作しない可能性があります。"));
+        }
+        else
+        {
+            Console.WriteLine(GetText("✅ All diagnostics passed!", "✅ すべての診断が合格しました！"));
+        }
+
+        if (!verbose)
+        {
+            Console.WriteLine();
+            Console.WriteLine(GetText("Run with --verbose for more details.", "詳細情報を表示するには--verboseを指定してください。"));
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(GetText("Next steps:", "次のステップ："));
+        Console.WriteLine(GetText("  1. Run 'WindowsDesktopUse setup' to configure Claude Desktop", "  1. 'WindowsDesktopUse setup'を実行してClaude Desktopを設定"));
+        Console.WriteLine(GetText("  2. Start Claude Desktop and begin using WindowsDesktopUse", "  2. Claude Desktopを起動してWindowsDesktopUseを使用開始"));
     }
-    else
-    {
-        Console.WriteLine(GetText("✅ All diagnostics passed!", "✅ すべての診断が合格しました！"));
-    }
-    
-    Console.WriteLine();
-    Console.WriteLine(GetText("Next steps:", "次のステップ："));
-    Console.WriteLine(GetText("  1. Run 'WindowsDesktopUse setup' to configure Claude Desktop", "  1. 'WindowsDesktopUse setup'を実行してClaude Desktopを設定"));
-    Console.WriteLine(GetText("  2. Start Claude Desktop and begin using WindowsDesktopUse", "  2. Claude Desktopを起動してWindowsDesktopUseを使用開始"));
-});
+}, doctorVerboseOption, doctorJsonOption);
 
 // Setup command
-setupCmd.SetHandler(() =>
+setupCmd.SetHandler((string? configPath, bool noMerge, bool dryRun) =>
 {
     Console.WriteLine(GetText(
         "🔧 Windows Desktop Use - Setup",
@@ -155,67 +414,94 @@ setupCmd.SetHandler(() =>
     var exePath = Process.GetCurrentProcess().MainModule?.FileName;
     if (string.IsNullOrEmpty(exePath))
     {
-        // Fallback to AppContext
         exePath = Path.Combine(AppContext.BaseDirectory, "WindowsDesktopUse.exe");
     }
-    
-    var configPath = Path.Combine(
+
+    var targetConfigPath = configPath ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Claude", "claude_desktop_config.json");
 
     Console.WriteLine($"{GetText("Executable", "実行ファイル")}: {exePath}");
-    Console.WriteLine($"{GetText("Config file", "設定ファイル")}: {configPath}");
+    Console.WriteLine($"{GetText("Config file", "設定ファイル")}: {targetConfigPath}");
     Console.WriteLine();
+
+    if (noMerge)
+    {
+        Console.WriteLine(GetText("⚠️  --no-merge option enabled: Existing configuration will be overwritten.", "⚠️  --no-mergeオプション有効: 既存の設定は上書きされます。"));
+        Console.WriteLine();
+    }
 
     // Check existing config
     var existingConfig = new Dictionary<string, object>();
-    if (File.Exists(configPath))
+    if (File.Exists(targetConfigPath))
     {
         Console.WriteLine(GetText("⚠️  Existing configuration found!", "⚠️  既存の設定が見つかりました！"));
-        try
+        if (noMerge)
         {
-            var existingJson = File.ReadAllText(configPath);
-            existingConfig = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(existingJson) ?? new Dictionary<string, object>();
-            
-            if (existingConfig.ContainsKey("mcpServers"))
-            {
-                Console.WriteLine(GetText("Existing MCP servers will be preserved.", "既存のMCPサーバー設定は保持されます。"));
-            }
+            Console.WriteLine(GetText("Existing configuration will be overwritten due to --no-merge.", "--no-mergeにより既存の設定は上書きされます。"));
         }
-        catch
+        else
         {
-            Console.WriteLine(GetText("⚠️  Could not read existing config. It may be overwritten.", "⚠️  既存設定を読み込めません。上書きされる可能性があります。"));
+            try
+            {
+                var existingJson = File.ReadAllText(targetConfigPath);
+                existingConfig = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(existingJson) ?? new Dictionary<string, object>();
+
+                if (existingConfig.ContainsKey("mcpServers"))
+                {
+                    Console.WriteLine(GetText("Existing MCP servers will be preserved.", "既存のMCPサーバー設定は保持されます。"));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(GetText("⚠️  Could not read existing config. It may be overwritten.", "⚠️  既存設定を読み込めません。上書きされる可能性があります。"));
+                Console.WriteLine($"  {ex.Message}");
+            }
         }
         Console.WriteLine();
     }
 
-    // Build new config preserving existing mcpServers
+    // Build new config
     var newMcpServer = new
     {
         command = exePath,
         args = new[] { "--httpPort", "5000" }
     };
 
-    Dictionary<string, object> mcpServers;
-    if (existingConfig.TryGetValue("mcpServers", out var existingMcpObj) && existingMcpObj is Dictionary<string, object> existingMcp)
+    Dictionary<string, object> config;
+    if (noMerge)
     {
-        mcpServers = existingMcp;
-        mcpServers["windowsDesktopUse"] = newMcpServer;
+        config = new Dictionary<string, object>
+        {
+            ["mcpServers"] = new Dictionary<string, object>
+            {
+                ["windowsDesktopUse"] = newMcpServer
+            }
+        };
     }
     else
     {
-        mcpServers = new Dictionary<string, object>
+        Dictionary<string, object> mcpServers;
+        if (existingConfig.TryGetValue("mcpServers", out var existingMcpObj) && existingMcpObj is Dictionary<string, object> existingMcp)
         {
-            ["windowsDesktopUse"] = newMcpServer
-        };
+            mcpServers = existingMcp;
+            mcpServers["windowsDesktopUse"] = newMcpServer;
+        }
+        else
+        {
+            mcpServers = new Dictionary<string, object>
+            {
+                ["windowsDesktopUse"] = newMcpServer
+            };
+        }
+
+        config = new Dictionary<string, object>(existingConfig);
+        config["mcpServers"] = mcpServers;
     }
 
-    var config = new Dictionary<string, object>(existingConfig);
-    config["mcpServers"] = mcpServers;
-
-    var jsonOptions = new System.Text.Json.JsonSerializerOptions 
-    { 
-        WriteIndented = true 
+    var jsonOptions = new System.Text.Json.JsonSerializerOptions
+    {
+        WriteIndented = true
     };
     var json = System.Text.Json.JsonSerializer.Serialize(config, jsonOptions);
 
@@ -223,29 +509,46 @@ setupCmd.SetHandler(() =>
     Console.WriteLine(GetText("------------------------", "------------------------"));
     Console.WriteLine(json);
     Console.WriteLine(GetText("------------------------", "------------------------"));
-    Console.WriteLine();
 
-    try
+    if (!dryRun)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
-        File.WriteAllText(configPath, json);
-        Console.WriteLine(GetText("✅ Configuration saved to Claude Desktop!", "✅ Claude Desktopに設定を保存しました！"));
         Console.WriteLine();
-        Console.WriteLine(GetText("Please restart Claude Desktop to apply changes.", "変更を適用するにはClaude Desktopを再起動してください。"));
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(targetConfigPath)!);
+            File.WriteAllText(targetConfigPath, json);
+            Console.WriteLine(GetText("✅ Configuration saved to Claude Desktop!", "✅ Claude Desktopに設定を保存しました！"));
+            Console.WriteLine();
+            Console.WriteLine(GetText("Please restart Claude Desktop to apply changes.", "変更を適用するにはClaude Desktopを再起動してください。"));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(GetText($"✗ Failed to save configuration: {ex.Message}", $"✗ 設定の保存に失敗しました: {ex.Message}"));
+            Console.WriteLine();
+            Console.WriteLine(GetText("Please manually add the above configuration to:", "上記の設定を手動で以下に追加してください："));
+            Console.WriteLine(targetConfigPath);
+            Environment.Exit(1);
+        }
     }
-    catch (Exception ex)
-    {
-        Console.WriteLine(GetText($"✗ Failed to save configuration: {ex.Message}", $"✗ 設定の保存に失敗しました: {ex.Message}"));
-        Console.WriteLine();
-        Console.WriteLine(GetText("Please manually add the above configuration to:", "上記の設定を手動で以下に追加してください："));
-        Console.WriteLine(configPath);
-        Environment.Exit(1);
-    }
-});
+}, setupConfigPathOption, setupNoMergeOption, setupDryRunOption);
 
 // Whisper command
-whisperCmd.SetHandler(() =>
+whisperCmd.SetHandler((bool list) =>
 {
+    var modelDir = Path.Combine(AppContext.BaseDirectory, "models");
+    Directory.CreateDirectory(modelDir);
+
+    if (list)
+    {
+        var availableModels = WhisperTranscriptionService.GetModelInfo();
+        foreach (var kvp in availableModels)
+        {
+            var size = kvp.Key.ToString().ToLower();
+            Console.WriteLine($"{size}: {kvp.Value.Size} - {kvp.Value.Performance}");
+        }
+        return;
+    }
+
     Console.WriteLine(GetText(
         "🎤 Windows Desktop Use - Whisper Setup",
         "🎤 Windows Desktop Use - Whisperセットアップ"));
@@ -253,9 +556,6 @@ whisperCmd.SetHandler(() =>
         "=======================================",
         "======================================="));
     Console.WriteLine();
-
-    var modelDir = Path.Combine(AppContext.BaseDirectory, "models");
-    Directory.CreateDirectory(modelDir);
 
     Console.WriteLine(GetText($"Model directory: {modelDir}", $"モデルディレクトリ: {modelDir}"));
     Console.WriteLine();
@@ -291,7 +591,7 @@ whisperCmd.SetHandler(() =>
 
     Console.WriteLine(GetText("To download a model, use the 'listen' tool in Claude Desktop.", "モデルをダウンロードするには、Claude Desktopで'listen'ツールを使用してください。"));
     Console.WriteLine(GetText("The model will be automatically downloaded on first use.", "初回使用時に自動的にダウンロードされます。"));
-});
+}, whisperListOption);
 
 // Main server command options
 var desktopOption = new Option<uint>(

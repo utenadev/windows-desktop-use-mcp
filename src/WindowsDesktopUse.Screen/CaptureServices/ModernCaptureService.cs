@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
-using WindowsDesktopUse.Core;
 
 namespace WindowsDesktopUse.Screen;
 

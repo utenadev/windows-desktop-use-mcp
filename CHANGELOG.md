@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2026-02-08
 
 ### Added
+- **CLI Subcommands**: New `System.CommandLine` based CLI interface with enhanced usability.
+  - `doctor`: System diagnostics with `--verbose` (detailed output) and `--json` (JSON format) options
+  - `setup`: Automatic Claude Desktop configuration with `--config-path`, `--no-merge`, and `--dry-run` options
+  - `whisper`: Whisper AI model management with `--list` option
+- **Administrator Privilege Check**: Enhanced `doctor` command with administrator privilege detection and helpful guidance for audio device issues
 - **Desktop Input Module**: New `WindowsDesktopUse.Input` DLL for controlling Windows desktop.
   - Mouse control: `mouse_move`, `mouse_click`, `mouse_drag`.
   - Keyboard control: `keyboard_type` (Unicode/International support), `keyboard_key` (Special keys like Ctrl, Alt, Win, Enter, etc.).
