@@ -108,9 +108,11 @@ public class McpE2ETests
                                 Console.WriteLine($"  📸 {description}: Desktop captured ({imageData.Length:N0} chars)");
                             }
                             return;
-                        }
-                    }
-                }
+            }
+        }
+
+        throw new FileNotFoundException($"WindowsDesktopUse.App.exe not found. Checked paths:\n{string.Join("\n", possiblePaths.Where(p => !string.IsNullOrEmpty(p)).Select(p => Path.GetFullPath(p)))}\n\nPlease build project first.");
+    }
                 Console.WriteLine($"  📸 {description}: Desktop captured");
             }
         }
