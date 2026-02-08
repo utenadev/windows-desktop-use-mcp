@@ -644,6 +644,7 @@ public class McpE2ETests
     // ============ AUDIO CAPTURE E2E TESTS ============
 
     [Test]
+    [Ignore("Skipped in CI: Audio devices may not be available in GitHub Actions runner environment")]
     public async Task E2E_ListAudioDevices_ReturnsDevices()
     {
         var client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>()).ConfigureAwait(false);
