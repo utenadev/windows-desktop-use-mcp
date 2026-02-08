@@ -8,6 +8,145 @@ using WindowsDesktopUse.App;
 
 [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
+// Create subcommands
+var doctorCmd = new Command("doctor", "Diagnose system compatibility and configuration");
+var setupCmd = new Command("setup", "Configure Claude Desktop integration");
+var serverCmd = new Command("server", "Run MCP server (default)") { IsHidden = true };
+
+// Doctor command
+doctorCmd.SetHandler(() =>
+{
+    Console.WriteLine("🔍 Windows Desktop Use - System Diagnostics");
+    Console.WriteLine("==========================================");
+    Console.WriteLine();
+
+    var hasError = false;
+
+    // Check OS
+    Console.WriteLine($"✓ Operating System: {Environment.OSVersion}");
+    if (Environment.OSVersion.Version.Major >= 10)
+    {
+        Console.WriteLine("  ✓ Windows 10/11 detected");
+    }
+    else
+    {
+        Console.WriteLine("  ✗ Windows 10 or later required");
+        hasError = true;
+    }
+
+    // Check .NET
+    Console.WriteLine($"✓ .NET Runtime: {Environment.Version}");
+    
+    // Check monitors
+    try
+    {
+        SetProcessDPIAware();
+        var captureService = new ScreenCaptureService(0);
+        captureService.InitializeMonitors();
+        var monitors = captureService.GetMonitors();
+        Console.WriteLine($"✓ Displays detected: {monitors.Count}");
+        foreach (var mon in monitors)
+        {
+            Console.WriteLine($"  - {mon.Name}: {mon.W}x{mon.H} at ({mon.X},{mon.Y})");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"✗ Screen capture test failed: {ex.Message}");
+        hasError = true;
+    }
+
+    // Check audio devices
+    try
+    {
+        var devices = AudioCaptureService.GetAudioDevices();
+        Console.WriteLine($"✓ Audio devices: {devices.Count}");
+    }
+    catch
+    {
+        Console.WriteLine("⚠ Audio device detection skipped (may require admin)");
+    }
+
+    Console.WriteLine();
+    if (hasError)
+    {
+        Console.WriteLine("❌ Diagnostics completed with errors");
+        Environment.Exit(1);
+    }
+    else
+    {
+        Console.WriteLine("✅ All diagnostics passed!");
+        Console.WriteLine();
+        Console.WriteLine("Next steps:");
+        Console.WriteLine("  1. Run 'WindowsDesktopUse setup' to configure Claude Desktop");
+        Console.WriteLine("  2. Start Claude Desktop and begin using WindowsDesktopUse");
+    }
+});
+
+// Setup command
+setupCmd.SetHandler(() =>
+{
+    Console.WriteLine("🔧 Windows Desktop Use - Setup");
+    Console.WriteLine("==============================");
+    Console.WriteLine();
+
+    var exePath = System.AppContext.BaseDirectory;
+    if (exePath.EndsWith("\\") || exePath.EndsWith("/"))
+        exePath = exePath.TrimEnd('\\', '/');
+    var exeName = "WindowsDesktopUse.exe";
+    var fullExePath = Path.Combine(exePath, exeName);
+    
+    var configPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "Claude", "claude_desktop_config.json");
+
+    Console.WriteLine($"Executable: {fullExePath}");
+    Console.WriteLine($"Config file: {configPath}");
+    Console.WriteLine();
+
+    var config = new
+    {
+        mcpServers = new
+        {
+            windowsDesktopUse = new
+            {
+                command = fullExePath,
+                args = new[] { "--httpPort", "5000" }
+            }
+        }
+    };
+
+    var jsonOptions = new System.Text.Json.JsonSerializerOptions 
+    { 
+        WriteIndented = true 
+    };
+    var json = System.Text.Json.JsonSerializer.Serialize(config, jsonOptions);
+
+    Console.WriteLine("Generated configuration:");
+    Console.WriteLine("------------------------");
+    Console.WriteLine(json);
+    Console.WriteLine("------------------------");
+    Console.WriteLine();
+
+    try
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
+        File.WriteAllText(configPath, json);
+        Console.WriteLine("✅ Configuration saved to Claude Desktop!");
+        Console.WriteLine();
+        Console.WriteLine("Please restart Claude Desktop to apply changes.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"✗ Failed to save configuration: {ex.Message}");
+        Console.WriteLine();
+        Console.WriteLine("Please manually add the above configuration to:");
+        Console.WriteLine(configPath);
+        Environment.Exit(1);
+    }
+});
+
+// Main server command options
 var desktopOption = new Option<uint>(
     name: "--desktopNum",
     description: "Default monitor index (0=primary)",
@@ -23,7 +162,12 @@ var testOption = new Option<bool>(
     description: "Test Whisper transcription directly",
     getDefaultValue: () => false);
 
+// Root command with subcommands
 var rootCmd = new RootCommand("Windows Desktop Use MCP Server");
+rootCmd.AddCommand(doctorCmd);
+rootCmd.AddCommand(setupCmd);
+
+// Add server options to root command (default behavior)
 rootCmd.AddOption(desktopOption);
 rootCmd.AddOption(httpPortOption);
 rootCmd.AddOption(testOption);
