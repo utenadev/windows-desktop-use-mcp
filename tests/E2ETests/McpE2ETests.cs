@@ -22,8 +22,8 @@ public class McpE2ETests
         var possiblePaths = new[]
         {
             // GitHub Actions build paths
-            Path.Combine(repoRoot, "src", "WindowsDesktopUse.App", "bin", "Release", "net8.0-windows", "win-x64", "WindowsDesktopUse.App.exe"),
-            Path.Combine(repoRoot, "src", "WindowsDesktopUse.App", "bin", "Debug", "net8.0-windows", "win-x64", "WindowsDesktopUse.App.exe"),
+            Path.Combine(repoRoot, "src", "WindowsDesktopUse.App", "bin", "Release", "net8.0-windows", "win-x64", "WindowsDesktopUse.exe"),
+            Path.Combine(repoRoot, "src", "WindowsDesktopUse.App", "bin", "Debug", "net8.0-windows", "win-x64", "WindowsDesktopUse.exe"),
             // Local development fallback
             ""
         };
@@ -39,7 +39,7 @@ public class McpE2ETests
             }
         }
 
-        throw new FileNotFoundException($"WindowsDesktopUse.App.exe not found. Checked paths:\n{string.Join("\n", possiblePaths.Where(p => !string.IsNullOrEmpty(p)).Select(p => Path.GetFullPath(p)))}\n\nPlease build the project first.");
+        throw new FileNotFoundException($"WindowsDesktopUse.exe not found. Checked paths:\n{string.Join("\n", possiblePaths.Where(p => !string.IsNullOrEmpty(p)).Select(p => Path.GetFullPath(p)))}\n\nPlease build the project first.");
     }
 
     private static string GetRepoRootFromAssembly()
