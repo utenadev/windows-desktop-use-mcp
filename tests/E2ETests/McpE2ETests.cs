@@ -39,7 +39,7 @@ public class McpE2ETests
             }
         }
 
-        throw new FileNotFoundException($"WindowsDesktopUse.App.exe not found. Checked paths:\n{string.Join("\n", possiblePaths.Select(p => Path.GetFullPath(p)))}\n\nPlease build the project first.");
+        throw new FileNotFoundException($"WindowsDesktopUse.App.exe not found. Checked paths:\n{string.Join("\n", possiblePaths.Where(p => !string.IsNullOrEmpty(p)).Select(p => Path.GetFullPath(p)))}\n\nPlease build the project first.");
     }
 
     private static string GetRepoRootFromAssembly()
