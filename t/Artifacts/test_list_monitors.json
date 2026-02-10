@@ -1,9 +1,0 @@
-{
-  "jsonrpc": "2.0",
-  "method": "list_monitors",
-  "params": {
-    "name": "list_monitors",
-    "arguments": {}
-  },
-  "id": 1
-}
