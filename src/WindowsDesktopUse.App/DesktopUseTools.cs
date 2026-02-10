@@ -22,6 +22,40 @@ public static class DesktopUseTools
     public static void SetWhisperService(WhisperTranscriptionService whisperService) => _whisperService = whisperService;
     public static void SetInputService(InputService inputService) => _inputService = inputService;
 
+    // Enum for capture target types
+    public enum CaptureTargetType
+    {
+        Monitor,
+        Window,
+        Region,
+        Primary
+    }
+
+    // Enum for audio source types
+    public enum AudioSourceType
+    {
+        Microphone,
+        System,
+        File,
+        AudioSession
+    }
+
+    // Enum for mouse button types
+    public enum MouseButtonName
+    {
+        Left,
+        Right,
+        Middle
+    }
+
+    // Enum for key action types
+    public enum KeyActionType
+    {
+        Press,
+        Release,
+        Click
+    }
+
     // ============ SCREEN CAPTURE TOOLS ============
 
     [McpServerTool, Description("List all available monitors/displays with their index, name, resolution, and position")]
@@ -225,7 +259,7 @@ public static class DesktopUseTools
 
     [McpServerTool, Description("Capture screen, window, or region as image")]
     public static CaptureResult Capture(
-        [Description("Target type: 'monitor', 'window', 'region', 'primary'")] string target = "primary",
+        [Description("Target type: 'monitor', 'window', 'region', 'primary'")] CaptureTargetType target = CaptureTargetType.Primary,
         [Description("Target identifier")] string? targetId = null,
         [Description("X coordinate for region")] int? x = null,
         [Description("Y coordinate for region")] int? y = null,
@@ -235,32 +269,31 @@ public static class DesktopUseTools
         [Description("Maximum width")] int maxWidth = 1920)
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
-        if (target == null) throw new ArgumentNullException(nameof(target), "Target type cannot be null");
         if (quality < 1 || quality > 100) throw new ArgumentOutOfRangeException(nameof(quality), "Quality must be between 1 and 100");
         if (maxWidth < 1) throw new ArgumentOutOfRangeException(nameof(maxWidth), "MaxWidth must be greater than 0");
 
         string imageData;
-        string actualTargetType = target;
+        string actualTargetType = target.ToString().ToLowerInvariant();
         string actualTargetId = targetId ?? "0";
         int capturedWidth = 0;
         int capturedHeight = 0;
 
-        switch (target.ToLowerInvariant())
+        switch (target)
         {
-            case "primary":
+            case CaptureTargetType.Primary:
                 imageData = _capture.CaptureSingle(0, maxWidth, quality);
                 actualTargetType = "monitor";
                 actualTargetId = "0";
                 break;
 
-            case "monitor":
+            case CaptureTargetType.Monitor:
                 if (!uint.TryParse(targetId ?? "0", out var monitorIdx))
                     throw new ArgumentException("Invalid monitor index");
                 imageData = _capture.CaptureSingle(monitorIdx, maxWidth, quality);
                 capturedWidth = maxWidth;
                 break;
 
-            case "window":
+            case CaptureTargetType.Window:
                 if (targetId == null) throw new ArgumentNullException(nameof(targetId), "Target ID is required for window capture");
                 if (!long.TryParse(targetId, out var hwnd))
                     throw new ArgumentException("Invalid window handle");
@@ -269,7 +302,7 @@ public static class DesktopUseTools
                 actualTargetId = hwnd.ToString();
                 break;
 
-            case "region":
+            case CaptureTargetType.Region:
                 if (!x.HasValue || !y.HasValue || !w.HasValue || !h.HasValue)
                     throw new ArgumentException("Region capture requires x, y, w, h");
                 imageData = _capture.CaptureRegion(x.Value, y.Value, w.Value, h.Value, maxWidth, quality);
@@ -298,7 +331,7 @@ public static class DesktopUseTools
     [McpServerTool, Description("Start watching/streaming a target")]
     public static WatchSession Watch(
         McpServer server,
-        [Description("Target type: 'monitor', 'window'")] string target = "monitor",
+        [Description("Target type: 'monitor', 'window'")] CaptureTargetType target = CaptureTargetType.Monitor,
         [Description("Target identifier")] string? targetId = null,
         [Description("Capture interval in milliseconds")] int intervalMs = 1000,
         [Description("JPEG quality")] int quality = 80,
@@ -306,7 +339,6 @@ public static class DesktopUseTools
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
         if (server == null) throw new ArgumentNullException(nameof(server), "McpServer cannot be null");
-        if (target == null) throw new ArgumentNullException(nameof(target), "Target type cannot be null");
         if (intervalMs < 100)
             throw new ArgumentOutOfRangeException(nameof(intervalMs), "Interval must be at least 100ms");
         if (quality < 1 || quality > 100) throw new ArgumentOutOfRangeException(nameof(quality), "Quality must be between 1 and 100");
@@ -330,9 +362,9 @@ public static class DesktopUseTools
         string sessionId;
         string actualTargetId = targetId ?? "0";
 
-        switch (target.ToLowerInvariant())
+        switch (target)
         {
-            case "monitor":
+            case CaptureTargetType.Monitor:
                 if (targetId == null) throw new ArgumentNullException(nameof(targetId), "Target ID is required for monitor target");
                 if (!uint.TryParse(targetId, out var monitorIdx))
                     throw new ArgumentException("Invalid monitor index");
@@ -340,7 +372,7 @@ public static class DesktopUseTools
                 actualTargetId = monitorIdx.ToString();
                 break;
 
-            case "window":
+            case CaptureTargetType.Window:
                 if (targetId == null) throw new ArgumentNullException(nameof(targetId), "Target ID is required for window target");
                 if (!long.TryParse(targetId, out var hwnd))
                     throw new ArgumentException("Invalid window handle");
@@ -352,7 +384,7 @@ public static class DesktopUseTools
                 throw new ArgumentException($"Target type '{target}' not supported. Valid values are 'monitor', 'window'");
         }
 
-        return new WatchSession(sessionId, target, actualTargetId, intervalMs, "active");
+        return new WatchSession(sessionId, target.ToString().ToLowerInvariant(), actualTargetId, intervalMs, "active");
     }
 
     [McpServerTool, Description("Stop watching a capture session")]
@@ -411,7 +443,7 @@ public static class DesktopUseTools
 
     [McpServerTool, Description("Transcribe audio to text using Whisper AI")]
     public static TranscriptionResult Listen(
-        [Description("Source: 'microphone', 'system', 'file', 'audio_session'")] string source = "system",
+        [Description("Source: 'microphone', 'system', 'file', 'audio_session'")] AudioSourceType source = AudioSourceType.System,
         [Description("Source ID")] string? sourceId = null,
         [Description("Language code")] string language = "auto",
         [Description("Recording duration in seconds")] int duration = 10,
@@ -422,8 +454,6 @@ public static class DesktopUseTools
         {
             throw new InvalidOperationException("WhisperTranscriptionService not initialized");
         }
-        if (source == null) throw new ArgumentNullException(nameof(source), "Source cannot be null");
-        if (modelSize == null) throw new ArgumentNullException(nameof(modelSize), "Model size cannot be null");
         if (duration < 1) throw new ArgumentOutOfRangeException(nameof(duration), "Duration must be at least 1 second");
 
         if (!Enum.TryParse<WhisperModelSize>(modelSize, true, out var modelSizeEnum))
@@ -436,9 +466,9 @@ public static class DesktopUseTools
 
         try
         {
-            switch (source.ToLowerInvariant())
+            switch (source)
             {
-                case "file":
+                case AudioSourceType.File:
                     if (string.IsNullOrEmpty(sourceId))
                     {
                         throw new ArgumentException("sourceId required when source='file'");
@@ -450,7 +480,7 @@ public static class DesktopUseTools
                     }
                     break;
 
-                case "audio_session":
+                case AudioSourceType.AudioSession:
                     if (_audioCapture == null)
                     {
                         throw new InvalidOperationException("AudioCaptureService not initialized");
@@ -465,13 +495,13 @@ public static class DesktopUseTools
                     shouldCleanup = true;
                     break;
 
-                case "microphone":
-                case "system":
+                case AudioSourceType.Microphone:
+                case AudioSourceType.System:
                     _audioCapture ??= new AudioCaptureService();
-                    var captureSource = source.ToLowerInvariant() == "microphone" ? AudioCaptureSource.Microphone : AudioCaptureSource.System;
+                    var captureSource = source == AudioSourceType.Microphone ? AudioCaptureSource.Microphone : AudioCaptureSource.System;
                     var session = _audioCapture.StartCapture(captureSource, 16000);
 
-                    Console.WriteLine($"[Listen] Recording {source} audio for {duration} seconds...");
+                    Console.WriteLine($"[Listen] Recording {(source == AudioSourceType.Microphone ? "microphone" : "system")} audio for {duration} seconds...");
                     Thread.Sleep(TimeSpan.FromSeconds(duration));
 
                     var capturedAudio = _audioCapture.StopCapture(session.SessionId, false);
@@ -550,19 +580,18 @@ public static class DesktopUseTools
 
     [McpServerTool, Description("Click mouse button")]
     public static void MouseClick(
-        [Description("Button: 'left', 'right', 'middle'")] string button = "left",
+        [Description("Button: 'left', 'right', 'middle'")] MouseButtonName button = MouseButtonName.Left,
         [Description("Click count")] int count = 1)
     {
         if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
-        if (button == null) throw new ArgumentNullException(nameof(button), "Button cannot be null");
         if (count < 1) throw new ArgumentOutOfRangeException(nameof(count), "Click count must be at least 1");
 
-        var mouseButton = button.ToLowerInvariant() switch
+        var mouseButton = button switch
         {
-            "left" => MouseButton.Left,
-            "right" => MouseButton.Right,
-            "middle" => MouseButton.Middle,
-            _ => throw new ArgumentException($"Invalid button: {button}. Valid values are 'left', 'right', 'middle'")
+            MouseButtonName.Left => MouseButton.Left,
+            MouseButtonName.Right => MouseButton.Right,
+            MouseButtonName.Middle => MouseButton.Middle,
+            _ => throw new ArgumentException($"Invalid button: {button}")
         };
 
         _inputService.ClickMouse(mouseButton, count);
@@ -582,29 +611,27 @@ public static class DesktopUseTools
     [McpServerTool, Description("Press a navigation key (security restricted)")]
     public static void KeyboardKey(
         [Description("Key name: enter, tab, escape, space, backspace, delete, left, up, right, down, home, end, pageup, pagedown")] string key,
-        [Description("Action: 'press', 'release', 'click'")] string action = "click")
+        [Description("Action: 'press', 'release', 'click'")] KeyActionType action = KeyActionType.Click)
     {
         if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+        if (key == null) throw new ArgumentNullException(nameof(key), "Key cannot be null");
 
-        var keyAction = action.ToLower() switch
+        var keyAction = action switch
         {
-            "press" => KeyAction.Press,
-            "release" => KeyAction.Release,
-            "click" => KeyAction.Click,
+            KeyActionType.Press => KeyAction.Press,
+            KeyActionType.Release => KeyAction.Release,
+            KeyActionType.Click => KeyAction.Click,
             _ => KeyAction.Click
         };
 
-        var virtualKey = key.ToLower() switch
+        var virtualKey = key.ToLowerInvariant() switch
         {
-            "enter" => InputService.VirtualKeys.Enter,
-            "return" => InputService.VirtualKeys.Enter,
+            "enter" or "return" => InputService.VirtualKeys.Enter,
             "tab" => InputService.VirtualKeys.Tab,
-            "escape" => InputService.VirtualKeys.Escape,
-            "esc" => InputService.VirtualKeys.Escape,
+            "escape" or "esc" => InputService.VirtualKeys.Escape,
             "space" => InputService.VirtualKeys.Space,
             "backspace" => InputService.VirtualKeys.Backspace,
-            "delete" => InputService.VirtualKeys.Delete,
-            "del" => InputService.VirtualKeys.Delete,
+            "delete" or "del" => InputService.VirtualKeys.Delete,
             "left" => InputService.VirtualKeys.Left,
             "up" => InputService.VirtualKeys.Up,
             "right" => InputService.VirtualKeys.Right,
