@@ -34,7 +34,7 @@ Add this to your `%AppData%\Roaming\Claude\claude_desktop_config.json`:
 {
   "mcpServers": {
     "windows-desktop-use": {
-      "command": "C:\\Tools\\WindowsDesktopUse\\WindowsDesktopUse.exe",
+      "command": "C:\Tools\WindowsDesktopUse\WindowsDesktopUse.exe",
       "args": ["--httpPort", "5000"]
     }
   }
