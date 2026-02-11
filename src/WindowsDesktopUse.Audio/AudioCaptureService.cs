@@ -8,7 +8,7 @@ namespace WindowsDesktopUse.Audio;
 /// <summary>
 /// Service for capturing audio from system or microphone
 /// </summary>
-public class AudioCaptureService : IDisposable
+public sealed class AudioCaptureService : IDisposable
 {
     private readonly ConcurrentDictionary<string, AudioSession> _sessions = new();
     private readonly ConcurrentDictionary<string, IWaveIn> _captures = new();

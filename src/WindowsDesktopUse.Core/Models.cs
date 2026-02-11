@@ -68,10 +68,19 @@ public class StreamSession : IDisposable
 
     public void Dispose()
     {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
         if (!_disposed)
         {
-            Cts?.Cancel();
-            Cts?.Dispose();
+            if (disposing)
+            {
+                Cts?.Cancel();
+                Cts?.Dispose();
+            }
             _disposed = true;
         }
     }
@@ -94,8 +103,8 @@ public record CaptureTarget(
 /// List of capture targets
 /// </summary>
 public record CaptureTargets(
-    List<CaptureTarget> Monitors,
-    List<CaptureTarget> Windows,
+    IReadOnlyList<CaptureTarget> Monitors,
+    IReadOnlyList<CaptureTarget> Windows,
     int TotalCount
 );
 
@@ -194,7 +203,7 @@ public record TranscriptionSegment(
 /// </summary>
 public record TranscriptionResult(
     string SessionId,
-    List<TranscriptionSegment> Segments,
+    IReadOnlyList<TranscriptionSegment> Segments,
     string Language,
     TimeSpan Duration,
     string ModelUsed
