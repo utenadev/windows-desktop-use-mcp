@@ -16,12 +16,10 @@ public static class DesktopUseTools
     private static ScreenCaptureService? _capture;
     private static AudioCaptureService? _audioCapture;
     private static WhisperTranscriptionService? _whisperService;
-    private static InputService? _inputService;
 
     public static void SetCaptureService(ScreenCaptureService capture) => _capture = capture;
     public static void SetAudioCaptureService(AudioCaptureService audioCapture) => _audioCapture = audioCapture;
     public static void SetWhisperService(WhisperTranscriptionService whisperService) => _whisperService = whisperService;
-    public static void SetInputService(InputService inputService) => _inputService = inputService;
 
     // Enum for capture target types
     public enum CaptureTargetType
@@ -575,7 +573,7 @@ public static class DesktopUseTools
         [Description("X coordinate")] int x,
         [Description("Y coordinate")] int y)
     {
-        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+        
         InputService.MoveMouse(x, y);
     }
 
@@ -584,7 +582,7 @@ public static class DesktopUseTools
         [Description("Button: 'left', 'right', 'middle'")] MouseButtonName button = MouseButtonName.Left,
         [Description("Click count")] int count = 1)
     {
-        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+        
         if (count < 1) throw new ArgumentOutOfRangeException(nameof(count), "Click count must be at least 1");
 
         var mouseButton = button switch
@@ -605,7 +603,7 @@ public static class DesktopUseTools
         [Description("End X")] int endX,
         [Description("End Y")] int endY)
     {
-        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+        
         InputService.DragMouseAsync(startX, startY, endX, endY).GetAwaiter().GetResult();
     }
 
@@ -614,7 +612,7 @@ public static class DesktopUseTools
         [Description("Key name: enter, tab, escape, space, backspace, delete, left, up, right, down, home, end, pageup, pagedown")] string key,
         [Description("Action: 'press', 'release', 'click'")] KeyActionType action = KeyActionType.Click)
     {
-        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+        
         if (key == null) throw new ArgumentNullException(nameof(key), "Key cannot be null");
 
         var keyAction = action switch
@@ -627,20 +625,20 @@ public static class DesktopUseTools
 
         var virtualKey = key.ToUpperInvariant() switch
         {
-            "ENTER" or "RETURN" => InputService.VirtualKeys.Enter,
-            "TAB" => InputService.VirtualKeys.Tab,
-            "ESCAPE" or "ESC" => InputService.VirtualKeys.Escape,
-            "SPACE" => InputService.VirtualKeys.Space,
-            "BACKSPACE" => InputService.VirtualKeys.Backspace,
-            "DELETE" or "DEL" => InputService.VirtualKeys.Delete,
-            "LEFT" => InputService.VirtualKeys.Left,
-            "UP" => InputService.VirtualKeys.Up,
-            "RIGHT" => InputService.VirtualKeys.Right,
-            "DOWN" => InputService.VirtualKeys.Down,
-            "HOME" => InputService.VirtualKeys.Home,
-            "END" => InputService.VirtualKeys.End,
-            "PAGEUP" => InputService.VirtualKeys.PageUp,
-            "PAGEDOWN" => InputService.VirtualKeys.PageDown,
+            "ENTER" or "RETURN" => VirtualKeys.Enter,
+            "TAB" => VirtualKeys.Tab,
+            "ESCAPE" or "ESC" => VirtualKeys.Escape,
+            "SPACE" => VirtualKeys.Space,
+            "BACKSPACE" => VirtualKeys.Backspace,
+            "DELETE" or "DEL" => VirtualKeys.Delete,
+            "LEFT" => VirtualKeys.Left,
+            "UP" => VirtualKeys.Up,
+            "RIGHT" => VirtualKeys.Right,
+            "DOWN" => VirtualKeys.Down,
+            "HOME" => VirtualKeys.Home,
+            "END" => VirtualKeys.End,
+            "PAGEUP" => VirtualKeys.PageUp,
+            "PAGEDOWN" => VirtualKeys.PageDown,
             _ => throw new ArgumentException($"Key '{key}' is not allowed or unknown. Allowed keys: enter, tab, escape, space, backspace, delete, arrow keys, home, end, pageup, pagedown")
         };
 
@@ -651,7 +649,7 @@ public static class DesktopUseTools
     public static void CloseWindow(
         [Description("Window handle (HWND) to close")] long hwnd)
     {
-        if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
+        
         InputService.TerminateWindowProcess(new IntPtr(hwnd));
     }
 }
