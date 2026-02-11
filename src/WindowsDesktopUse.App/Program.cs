@@ -664,7 +664,7 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
 
         try
         {
-            var result = DesktopUseTools.Listen(
+            var result = await DesktopUseTools.Listen(
                 source: DesktopUseTools.AudioSourceType.System,
                 duration: 30,
                 language: "ja",

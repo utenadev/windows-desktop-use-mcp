@@ -421,7 +421,7 @@ public static class DesktopUseTools
     }
 
     [McpServerTool, Description("Stop audio capture and return captured audio")]
-    public static AudioCaptureResult StopAudioCapture(
+    public static async Task<AudioCaptureResult> StopAudioCapture(
         [Description("Session ID")] string sessionId,
         [Description("Return format: 'base64', 'file_path'")] string returnFormat = "base64")
     {
@@ -430,7 +430,7 @@ public static class DesktopUseTools
             throw new InvalidOperationException("AudioCaptureService not initialized");
         }
 
-        return _audioCapture.StopCapture(sessionId, returnFormat == "base64");
+        return await _audioCapture.StopCaptureAsync(sessionId, returnFormat == "base64");
     }
 
     [McpServerTool, Description("Get list of active audio capture sessions")]
@@ -442,7 +442,7 @@ public static class DesktopUseTools
     // ============ WHISPER SPEECH RECOGNITION TOOLS ============
 
     [McpServerTool, Description("Transcribe audio to text using Whisper AI")]
-    public static TranscriptionResult Listen(
+    public static async Task<TranscriptionResult> Listen(
         [Description("Source: 'microphone', 'system', 'file', 'audio_session'")] AudioSourceType source = AudioSourceType.System,
         [Description("Source ID")] string? sourceId = null,
         [Description("Language code")] string language = "auto",
@@ -489,7 +489,7 @@ public static class DesktopUseTools
                     {
                         throw new ArgumentException("sourceId required when source='audio_session'");
                     }
-                    var audioResult = _audioCapture.StopCapture(sourceId, false);
+                    var audioResult = await _audioCapture.StopCaptureAsync(sourceId, false);
                     audioFilePath = Path.Combine(Path.GetTempPath(), $"whisper_temp_{Guid.NewGuid()}.wav");
                     File.WriteAllBytes(audioFilePath, Convert.FromBase64String(audioResult.AudioDataBase64));
                     shouldCleanup = true;
@@ -504,7 +504,7 @@ public static class DesktopUseTools
                     Console.WriteLine($"[Listen] Recording {(source == AudioSourceType.Microphone ? "microphone" : "system")} audio for {duration} seconds...");
                     await Task.Delay(TimeSpan.FromSeconds(duration));
 
-                    var capturedAudio = _audioCapture.StopCapture(session.SessionId, false);
+                    var capturedAudio = await _audioCapture.StopCaptureAsync(session.SessionId, false);
                     audioFilePath = capturedAudio.OutputPath;
                     if (string.IsNullOrEmpty(audioFilePath) || !File.Exists(audioFilePath))
                     {
@@ -594,7 +594,7 @@ public static class DesktopUseTools
             _ => throw new ArgumentException($"Invalid button: {button}")
         };
 
-        _inputService.ClickMouse(mouseButton, count);
+        _inputService.ClickMouseAsync(mouseButton, count).GetAwaiter().GetResult();
     }
 
     [McpServerTool, Description("Drag mouse from start to end position")]
@@ -605,7 +605,7 @@ public static class DesktopUseTools
         [Description("End Y")] int endY)
     {
         if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
-        _inputService.DragMouse(startX, startY, endX, endY);
+        _inputService.DragMouseAsync(startX, startY, endX, endY).GetAwaiter().GetResult();
     }
 
     [McpServerTool, Description("Press a navigation key (security restricted)")]

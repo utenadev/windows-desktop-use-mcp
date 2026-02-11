@@ -129,7 +129,7 @@ public class AudioCaptureService : IDisposable
     /// <summary>
     /// Stop audio capture and return the result
     /// </summary>
-    public AudioCaptureResult StopCapture(string sessionId, bool returnBase64 = true)
+    public async Task<AudioCaptureResult> StopCaptureAsync(string sessionId, bool returnBase64 = true)
     {
         if (!_sessions.TryGetValue(sessionId, out var session))
         {
@@ -208,7 +208,7 @@ public class AudioCaptureService : IDisposable
             {
                 try
                 {
-                    StopCapture(sessionId, false);
+                    StopCaptureAsync(sessionId, false).GetAwaiter().GetResult();
                 }
                 catch { }
             }

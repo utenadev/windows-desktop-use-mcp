@@ -131,7 +131,7 @@ public class InputService
     /// <summary>
     /// Click mouse button using SendInput
     /// </summary>
-    public void ClickMouse(MouseButton button, int count = 1)
+    public async Task ClickMouseAsync(MouseButton button, int count = 1)
     {
         for (int i = 0; i < count; i++)
         {
@@ -192,7 +192,7 @@ public class InputService
     /// <summary>
     /// Drag and drop from start to end position using SendInput
     /// </summary>
-    public void DragMouse(int startX, int startY, int endX, int endY)
+    public async Task DragMouseAsync(int startX, int startY, int endX, int endY)
     {
         // Move to start position
         MoveMouse(startX, startY);
