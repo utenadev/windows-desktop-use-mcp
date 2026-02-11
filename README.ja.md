@@ -122,7 +122,15 @@ WindowsDesktopUse.App.exe whisper --list   # モデル一覧のみ表示
 - `mouse_drag`: ドラッグ＆ドロップ操作。
 - `keyboard_key`: 安全なナビゲーションキー（Enter, Tab, 矢印キー等）の操作。セキュリティのため、テキスト入力と修飾キー（Ctrl, Alt, Win）はブロックされています。
 
-詳細な引数や使用例については、[**ツールガイド**](docs/TOOLS.ja.md) を参照してください。
+> ### ⚠️ hwnd を使う際の注意
+> Windowsハンドル（HWND）は整数値です。
+> ツール呼び出し時に文字列として渡すと `params/hwnd must be integer,null` エラーになります。
+>
+> **対応方法:**
+> - `list_windows` で取得した hwnd は、そのまま整数として使用してください
+> - もしエラーが出た場合は、`parseInt(hwnd)` 相当の処理が必要な可能性があります（環境依存）
+
+ 詳細な引数や使用例については、[**ツールガイド**](docs/TOOLS.ja.md) を参照してください。
 
 ## ドキュメント一覧
 
