@@ -229,9 +229,18 @@ public class WhisperTranscriptionService : IDisposable
 
     public void Dispose()
     {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
         if (!_disposed)
         {
-            _whisperFactory?.Dispose();
+            if (disposing)
+            {
+                _whisperFactory?.Dispose();
+            }
             _disposed = true;
         }
     }

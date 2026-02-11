@@ -28,7 +28,7 @@ public interface ICaptureService
 /// <summary>
 /// Windows Graphics Capture API implementation (stub)
 /// </summary>
-public class ModernCaptureService : ICaptureService, IDisposable
+public sealed class ModernCaptureService : ICaptureService, IDisposable
 {
     public string ApiName => "Windows.Graphics.Capture (Stub)";
 
@@ -60,6 +60,7 @@ public class ModernCaptureService : ICaptureService, IDisposable
 
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
     }
 
     [DllImport("user32.dll")]

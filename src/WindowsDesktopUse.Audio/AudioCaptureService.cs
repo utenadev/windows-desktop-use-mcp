@@ -19,7 +19,7 @@ public sealed class AudioCaptureService : IDisposable
     /// <summary>
     /// List available audio capture devices
     /// </summary>
-    public static List<AudioDeviceInfo> GetAudioDevices()
+    public static IReadOnlyList<AudioDeviceInfo> GetAudioDevices()
     {
         var devices = new List<AudioDeviceInfo>();
 
@@ -187,7 +187,7 @@ public sealed class AudioCaptureService : IDisposable
     /// <summary>
     /// Get active audio sessions
     /// </summary>
-    public List<AudioSession> GetActiveSessions()
+    public IReadOnlyList<AudioSession> GetActiveSessions()
     {
         return _sessions.Values.Where(s => s.Status == "recording").ToList();
     }
