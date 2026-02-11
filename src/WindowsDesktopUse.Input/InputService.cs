@@ -27,7 +27,7 @@ public enum KeyAction
 /// Service for mouse and keyboard input operations using SendInput API
 /// Security-restricted: Only safe navigation keys are allowed
 /// </summary>
-public class InputService
+public static class InputService
 {
     [DllImport("user32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -341,30 +341,30 @@ public class InputService
 
         _ = SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
     }
+}
 
-    /// <summary>
-    /// Common virtual key codes - Safe navigation keys only
-    /// </summary>
-    public static class VirtualKeys
-    {
-        // Navigation keys
-        public const ushort Enter = 0x0D;
-        public const ushort Tab = 0x09;
-        public const ushort Escape = 0x1B;
-        public const ushort Space = 0x20;
-        public const ushort Backspace = 0x08;
-        public const ushort Delete = 0x2E;
+/// <summary>
+/// Common virtual key codes - Safe navigation keys only
+/// </summary>
+public static class VirtualKeys
+{
+    // Navigation keys
+    public const ushort Enter = 0x0D;
+    public const ushort Tab = 0x09;
+    public const ushort Escape = 0x1B;
+    public const ushort Space = 0x20;
+    public const ushort Backspace = 0x08;
+    public const ushort Delete = 0x2E;
 
-        // Arrow keys
-        public const ushort Left = 0x25;
-        public const ushort Up = 0x26;
-        public const ushort Right = 0x27;
-        public const ushort Down = 0x28;
+    // Arrow keys
+    public const ushort Left = 0x25;
+    public const ushort Up = 0x26;
+    public const ushort Right = 0x27;
+    public const ushort Down = 0x28;
 
-        // Page/Line navigation
-        public const ushort Home = 0x24;
-        public const ushort End = 0x23;
-        public const ushort PageUp = 0x21;
-        public const ushort PageDown = 0x22;
-    }
+    // Page/Line navigation
+    public const ushort Home = 0x24;
+    public const ushort End = 0x23;
+    public const ushort PageUp = 0x21;
+    public const ushort PageDown = 0x22;
 }
