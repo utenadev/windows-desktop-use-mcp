@@ -3,8 +3,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using WindowsDesktopUse.App;
 using WindowsDesktopUse.Audio;
 using WindowsDesktopUse.Input;
@@ -631,9 +629,9 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
 
     // Create service collection and register services
     var services = new ServiceCollection();
-    
+
     // Register singleton services
-    services.AddSingleton<ScreenCaptureService>(provider => 
+    services.AddSingleton<ScreenCaptureService>(provider =>
     {
         var service = new ScreenCaptureService(desktop);
         service.InitializeMonitors();
@@ -642,7 +640,7 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
     services.AddSingleton<AudioCaptureService>();
     services.AddSingleton<WhisperTranscriptionService>();
     services.AddSingleton<InputService>();
-    
+
     serviceProvider = services.BuildServiceProvider();
 
     // Initialize static tools with services
@@ -650,7 +648,7 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
     var audioCaptureService = serviceProvider.GetRequiredService<AudioCaptureService>();
     var whisperService = serviceProvider.GetRequiredService<WhisperTranscriptionService>();
     var inputService = serviceProvider.GetRequiredService<InputService>();
-    
+
     DesktopUseTools.SetCaptureService(captureService);
     DesktopUseTools.SetAudioCaptureService(audioCaptureService);
     DesktopUseTools.SetWhisperService(whisperService);
@@ -660,7 +658,7 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
     {
         Console.Error.WriteLine("[TEST] Testing Whisper transcription...");
         Console.Error.WriteLine("[TEST] Please play audio on YouTube! Starting in 3 seconds...");
-        await Task.Delay(3000); // Use async delay instead of Thread.Sleep
+        await Task.Delay(3000).ConfigureAwait(false); // Use async delay instead of Thread.Sleep
 
         try
         {
@@ -669,7 +667,7 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
                 duration: 30,
                 language: "ja",
                 modelSize: "small",
-                translate: false);
+                translate: false).ConfigureAwait(false);
 
             Console.Error.WriteLine($"[TEST] ========================================");
             Console.Error.WriteLine($"[TEST] 検出言語: {result.Language}");
@@ -789,8 +787,27 @@ static async Task StartHttpServer(ScreenCaptureService captureService, int port)
 
 public class StderrLoggerProvider : ILoggerProvider
 {
+    private bool _disposed = false;
+
     public ILogger CreateLogger(string categoryName) => new StderrLogger(categoryName);
-    public void Dispose() { }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                // Dispose managed resources
+            }
+            _disposed = true;
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
 }
 
 public class StderrLogger : ILogger
@@ -810,5 +827,23 @@ public class StderrLogger : ILogger
 public class NullScope : IDisposable
 {
     public static NullScope Instance { get; } = new NullScope();
-    public void Dispose() { }
+    private bool _disposed = false;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                // Dispose managed resources
+            }
+            _disposed = true;
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
 }

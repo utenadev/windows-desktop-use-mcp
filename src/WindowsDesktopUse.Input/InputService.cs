@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace WindowsDesktopUse.Input;
 
@@ -184,7 +184,7 @@ public class InputService
 
             if (i < count - 1)
             {
-                await Task.Delay(50);
+                await Task.Delay(50).ConfigureAwait(false);
             }
         }
     }
@@ -196,7 +196,7 @@ public class InputService
     {
         // Move to start position
         MoveMouse(startX, startY);
-        await Task.Delay(50);
+        await Task.Delay(50).ConfigureAwait(false);
 
         // Mouse down at start position
         var downInput = new INPUT
@@ -216,11 +216,11 @@ public class InputService
             }
         };
         SendInput(1, new[] { downInput }, Marshal.SizeOf(typeof(INPUT)));
-        await Task.Delay(50);
+        await Task.Delay(50).ConfigureAwait(false);
 
         // Move to end position
         MoveMouse(endX, endY);
-        await Task.Delay(50);
+        await Task.Delay(50).ConfigureAwait(false);
 
         // Mouse up at end position
         var upInput = new INPUT

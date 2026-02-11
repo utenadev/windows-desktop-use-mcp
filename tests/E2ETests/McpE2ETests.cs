@@ -1,7 +1,6 @@
-using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Client;
-using WindowsDesktopUse.Core;
 using System.Diagnostics;
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 
 namespace E2ETests;
 
@@ -51,10 +50,10 @@ public class McpE2ETests
 
         // Start a fresh Notepad instance
         Process.Start("notepad.exe");
-        
+
         // Wait for it to initialize and show window
         await Task.Delay(3000).ConfigureAwait(false);
-        
+
         _client = await TestHelper.CreateStdioClientAsync(ServerPath, Array.Empty<string>()).ConfigureAwait(false);
 
         // Find the newly opened notepad window and store its HWND
@@ -112,13 +111,13 @@ public class McpE2ETests
                 var windows = System.Text.Json.JsonSerializer.Deserialize<List<WindowInfo>>(textContent.Text);
                 if (windows != null)
                 {
-                    var notepad = windows.FirstOrDefault(w => 
+                    var notepad = windows.FirstOrDefault(w =>
                         !string.IsNullOrEmpty(w.Title) && (
-                        w.Title.Contains("Notepad", StringComparison.OrdinalIgnoreCase) || 
-                        w.Title.Contains("メモ帳") || 
-                        w.Title.Contains("無題") || 
+                        w.Title.Contains("Notepad", StringComparison.OrdinalIgnoreCase) ||
+                        w.Title.Contains("メモ帳") ||
+                        w.Title.Contains("無題") ||
                         w.Title.Contains("Untitled")));
-                    
+
                     if (notepad != null) return notepad;
                 }
             }
@@ -173,14 +172,14 @@ public class McpE2ETests
 
         int clickX = notepad.X + 50;
         int clickY = notepad.Y + 100;
-        
+
         await _client!.CallToolAsync("mouse_move", new Dictionary<string, object?> { ["x"] = clickX, ["y"] = clickY }).ConfigureAwait(false);
         await _client.CallToolAsync("mouse_click", new Dictionary<string, object?> { ["button"] = "left", ["count"] = 1 }).ConfigureAwait(false);
         await Task.Delay(500).ConfigureAwait(false);
-        
+
         await _client.CallToolAsync("mouse_click", new Dictionary<string, object?> { ["button"] = "right", ["count"] = 1 }).ConfigureAwait(false);
         await Task.Delay(1000).ConfigureAwait(false);
-        
+
         await _client.CallToolAsync("keyboard_key", new Dictionary<string, object?> { ["key"] = "escape", ["action"] = "click" }).ConfigureAwait(false);
     }
 }

@@ -59,17 +59,17 @@ public static class DesktopUseTools
     // ============ SCREEN CAPTURE TOOLS ============
 
     [McpServerTool, Description("List all available monitors/displays with their index, name, resolution, and position")]
-    public static List<MonitorInfo> ListMonitors()
+    public static IReadOnlyList<MonitorInfo> ListMonitors()
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
-        return _capture.GetMonitors();
+        return _capture.GetMonitors().AsReadOnly();
     }
 
     [McpServerTool, Description("List all visible windows with their handles, titles, and dimensions")]
-    public static List<WindowInfo> ListWindows()
+    public static IReadOnlyList<WindowInfo> ListWindows()
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
-        return _capture.GetWindows();
+        return _capture.GetWindows().AsReadOnly();
     }
 
     [McpServerTool, Description("Capture a screenshot of specified monitor or window. Returns the captured image as base64 JPEG.")]
@@ -86,7 +86,7 @@ public static class DesktopUseTools
             ? _capture.CaptureWindow(hwnd.Value, maxWidth, quality)
             : _capture.CaptureSingle(monitor, maxWidth, quality);
 
-        var base64Data = imageData.Contains(";base64,") ? imageData.Split(';')[1].Split(',')[1] : imageData;
+        var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal) ? imageData.Split(';')[1].Split(',')[1] : imageData;
 
         return new ImageContentBlock
         {
@@ -104,7 +104,7 @@ public static class DesktopUseTools
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
         var imageData = _capture.CaptureWindow(hwnd, maxWidth, quality);
-        var base64Data = imageData.Contains(";base64,") ? imageData.Split(';')[1].Split(',')[1] : imageData;
+        var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal) ? imageData.Split(';')[1].Split(',')[1] : imageData;
 
         return new ImageContentBlock
         {
@@ -125,7 +125,7 @@ public static class DesktopUseTools
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
         var imageData = _capture.CaptureRegion(x, y, w, h, maxWidth, quality);
-        var base64Data = imageData.Contains(";base64,") ? imageData.Split(';')[1].Split(',')[1] : imageData;
+        var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal) ? imageData.Split(';')[1].Split(',')[1] : imageData;
 
         return new ImageContentBlock
         {
@@ -231,7 +231,7 @@ public static class DesktopUseTools
             var monitorList = _capture.GetMonitors();
             monitors = monitorList.Select(m => new CaptureTarget(
                 "monitor",
-                m.Idx.ToString(),
+                m.Idx.ToString(CultureInfo.InvariantCulture),
                 m.Name,
                 m.W,
                 m.H,
@@ -245,7 +245,7 @@ public static class DesktopUseTools
             var windowList = _capture.GetWindows();
             windows = windowList.Select(w => new CaptureTarget(
                 "window",
-                w.Hwnd.ToString(),
+                w.Hwnd.ToString(CultureInfo.InvariantCulture),
                 w.Title,
                 w.W,
                 w.H,
@@ -273,7 +273,7 @@ public static class DesktopUseTools
         if (maxWidth < 1) throw new ArgumentOutOfRangeException(nameof(maxWidth), "MaxWidth must be greater than 0");
 
         string imageData;
-        string actualTargetType = target.ToString().ToLowerInvariant();
+        string actualTargetType = target.ToString();
         string actualTargetId = targetId ?? "0";
         int capturedWidth = 0;
         int capturedHeight = 0;
@@ -299,7 +299,7 @@ public static class DesktopUseTools
                     throw new ArgumentException("Invalid window handle");
                 imageData = _capture.CaptureWindow(hwnd, maxWidth, quality);
                 actualTargetType = "window";
-                actualTargetId = hwnd.ToString();
+                actualTargetId = hwnd.ToString(CultureInfo.InvariantCulture);
                 break;
 
             case CaptureTargetType.Region:
@@ -369,7 +369,7 @@ public static class DesktopUseTools
                 if (!uint.TryParse(targetId, out var monitorIdx))
                     throw new ArgumentException("Invalid monitor index");
                 sessionId = _capture.StartStream(monitorIdx, intervalMs, quality, maxWidth);
-                actualTargetId = monitorIdx.ToString();
+                actualTargetId = monitorIdx.ToString(CultureInfo.InvariantCulture);
                 break;
 
             case CaptureTargetType.Window:
@@ -377,14 +377,14 @@ public static class DesktopUseTools
                 if (!long.TryParse(targetId, out var hwnd))
                     throw new ArgumentException("Invalid window handle");
                 sessionId = _capture.StartWindowStream(hwnd, intervalMs, quality, maxWidth);
-                actualTargetId = hwnd.ToString();
+                actualTargetId = hwnd.ToString(CultureInfo.InvariantCulture);
                 break;
 
             default:
                 throw new ArgumentException($"Target type '{target}' not supported. Valid values are 'monitor', 'window'");
         }
 
-        return new WatchSession(sessionId, target.ToString().ToLowerInvariant(), actualTargetId, intervalMs, "active");
+        return new WatchSession(sessionId, target.ToString(), actualTargetId, intervalMs, "active");
     }
 
     [McpServerTool, Description("Stop watching a capture session")]
@@ -399,9 +399,9 @@ public static class DesktopUseTools
     // ============ AUDIO CAPTURE TOOLS ============
 
     [McpServerTool, Description("List available audio capture devices")]
-    public static List<AudioDeviceInfo> ListAudioDevices()
+    public static IReadOnlyList<AudioDeviceInfo> ListAudioDevices()
     {
-        return AudioCaptureService.GetAudioDevices();
+        return AudioCaptureService.GetAudioDevices().AsReadOnly();
     }
 
     [McpServerTool, Description("Start audio capture from system or microphone")]
@@ -430,13 +430,13 @@ public static class DesktopUseTools
             throw new InvalidOperationException("AudioCaptureService not initialized");
         }
 
-        return await _audioCapture.StopCaptureAsync(sessionId, returnFormat == "base64");
+        return await _audioCapture.StopCaptureAsync(sessionId, returnFormat == "base64").ConfigureAwait(false);
     }
 
     [McpServerTool, Description("Get list of active audio capture sessions")]
-    public static List<AudioSession> GetActiveAudioSessions()
+    public static IReadOnlyList<AudioSession> GetActiveAudioSessions()
     {
-        return _audioCapture?.GetActiveSessions() ?? new List<AudioSession>();
+        return (_audioCapture?.GetActiveSessions() ?? new List<AudioSession>()).AsReadOnly();
     }
 
     // ============ WHISPER SPEECH RECOGNITION TOOLS ============
@@ -489,7 +489,7 @@ public static class DesktopUseTools
                     {
                         throw new ArgumentException("sourceId required when source='audio_session'");
                     }
-                    var audioResult = await _audioCapture.StopCaptureAsync(sourceId, false);
+                    var audioResult = await _audioCapture.StopCaptureAsync(sourceId, false).ConfigureAwait(false);
                     audioFilePath = Path.Combine(Path.GetTempPath(), $"whisper_temp_{Guid.NewGuid()}.wav");
                     File.WriteAllBytes(audioFilePath, Convert.FromBase64String(audioResult.AudioDataBase64));
                     shouldCleanup = true;
@@ -502,9 +502,9 @@ public static class DesktopUseTools
                     var session = _audioCapture.StartCapture(captureSource, 16000);
 
                     Console.WriteLine($"[Listen] Recording {(source == AudioSourceType.Microphone ? "microphone" : "system")} audio for {duration} seconds...");
-                    await Task.Delay(TimeSpan.FromSeconds(duration));
+                    await Task.Delay(TimeSpan.FromSeconds(duration)).ConfigureAwait(false);
 
-                    var capturedAudio = await _audioCapture.StopCaptureAsync(session.SessionId, false);
+                    var capturedAudio = await _audioCapture.StopCaptureAsync(session.SessionId, false).ConfigureAwait(false);
                     audioFilePath = capturedAudio.OutputPath;
                     if (string.IsNullOrEmpty(audioFilePath) || !File.Exists(audioFilePath))
                     {
@@ -556,7 +556,7 @@ public static class DesktopUseTools
 
         foreach (var kvp in models)
         {
-            result[kvp.Key.ToString().ToLower()] = new
+            result[kvp.Key.ToString()] = new
             {
                 size = kvp.Value.Size,
                 performance = kvp.Value.Performance,

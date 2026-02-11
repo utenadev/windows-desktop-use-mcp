@@ -141,7 +141,7 @@ public class AudioCaptureService : IDisposable
             capture.StopRecording();
         }
 
-        await Task.Delay(100);
+        await Task.Delay(100).ConfigureAwait(false);
 
         if (_writers.TryRemove(sessionId, out var writer))
         {
