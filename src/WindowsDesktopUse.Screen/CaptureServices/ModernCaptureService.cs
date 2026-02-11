@@ -83,7 +83,7 @@ public sealed class ModernCaptureService : ICaptureService, IDisposable
 /// <summary>
 /// Hybrid capture service that tries modern API first, falls back to legacy
 /// </summary>
-public class HybridCaptureService : ICaptureService
+public sealed class HybridCaptureService : ICaptureService, IDisposable
 {
     private readonly ModernCaptureService? _modern;
     private readonly ScreenCaptureService _legacy;
@@ -175,7 +175,7 @@ public class HybridCaptureService : ICaptureService
         var hwndLong = hwnd.ToInt64();
         var imageData = _legacy.CaptureWindow(hwndLong, 1920, 80);
 
-        var base64Data = imageData.Contains(";base64,")
+        var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal)
             ? imageData.Split(',')[1]
             : imageData;
 
@@ -188,7 +188,7 @@ public class HybridCaptureService : ICaptureService
     {
         var imageData = _legacy.CaptureSingle(monitorIndex, 1920, 80);
 
-        var base64Data = imageData.Contains(";base64,")
+        var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal)
             ? imageData.Split(',')[1]
             : imageData;
 
@@ -200,5 +200,6 @@ public class HybridCaptureService : ICaptureService
     public void Dispose()
     {
         _modern?.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

@@ -63,14 +63,14 @@ public static class DesktopUseTools
     public static IReadOnlyList<MonitorInfo> ListMonitors()
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
-        return _capture.GetMonitors().AsReadOnly();
+        return _capture.GetMonitors();
     }
 
     [McpServerTool, Description("List all visible windows with their handles, titles, and dimensions")]
     public static IReadOnlyList<WindowInfo> ListWindows()
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
-        return _capture.GetWindows().AsReadOnly();
+        return _capture.GetWindows();
     }
 
     [McpServerTool, Description("Capture a screenshot of specified monitor or window. Returns the captured image as base64 JPEG.")]
@@ -317,7 +317,7 @@ public static class DesktopUseTools
                 throw new ArgumentException($"Unknown target type: {target}. Valid values are 'primary', 'monitor', 'window', 'region'");
         }
 
-        var base64Data = imageData.Contains(";base64,") ? imageData.Split(';')[1].Split(',')[1] : imageData;
+        var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal) ? imageData.Split(';')[1].Split(',')[1] : imageData;
 
         return new CaptureResult(
             base64Data,

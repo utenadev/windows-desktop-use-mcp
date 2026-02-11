@@ -24,7 +24,7 @@ public class ScreenCaptureService
         Console.Error.WriteLine($"[Capture] Found {_monitors.Count} monitors");
     }
 
-    public List<MonitorInfo> GetMonitors() => _monitors;
+    public IReadOnlyList<MonitorInfo> GetMonitors() => _monitors;
 
     public string CaptureSingle(uint idx, int maxW, int quality)
     {
@@ -199,7 +199,7 @@ public class ScreenCaptureService
         return true;
     }
 
-    public List<WindowInfo> GetWindows()
+    public IReadOnlyList<WindowInfo> GetWindows()
     {
         var windows = new List<WindowInfo>();
         var handle = GCHandle.Alloc(windows);
