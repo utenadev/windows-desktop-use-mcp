@@ -3,6 +3,8 @@
 An MCP server for controlling and perceiving Windows 11 from AI assistants.
 It provides AI with "eyes" (vision), "ears" (hearing), and "limbs" (input control), making the desktop environment accessible from MCP clients like Claude.
 
+[English](README.md) | [日本語](README.ja.md)
+
 ## Main Features
 
 - **Vision (Screen Capture)**: Capture monitors, specific windows, or arbitrary regions.

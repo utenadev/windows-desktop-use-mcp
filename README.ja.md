@@ -3,6 +3,8 @@
 Windows 11 を AI から自在に操作・認識するための MCP サーバー。
 AI に Windows の「目（視覚）」「耳（聴覚）」「手足（操作）」を与え、Claude などの MCP クライアントからデスクトップ環境を利用可能にします。
 
+[English](README.md) | [日本語](README.ja.md)
+
 ## 主な機能
 
 - **視覚 (Screen Capture)**: モニター、特定のウィンドウ、または任意領域のキャプチャ。
@@ -12,12 +14,47 @@ AI に Windows の「目（視覚）」「耳（聴覚）」「手足（操作�
 
 ## クイックスタート
 
-### 1. ビルド
+### 非開発者向け（ビルド済み実行ファイル）
+
+開発環境がない場合、[Releases](../../releases) からビルド済みの実行ファイルを利用できます。
+
+#### 1. ダウンロード
+1. [Releases ページ](../../releases) にアクセス
+2. 最新の `WindowsDesktopUse.zip` をダウンロード
+3. 好きな場所に展開（例：`C:\Tools\WindowsDesktopUse`）
+
+#### 2. Claude Desktop の設定
+**方法 A：自動セットアップ**
+```powershell
+C:\Tools\WindowsDesktopUse\WindowsDesktopUse.App.exe setup
+```
+
+**方法 B：手動設定**
+`%AppData%\Roaming\Claude\claude_desktop_config.json` に以下を追加します：
+```json
+{
+  "mcpServers": {
+    "windows-desktop-use": {
+      "command": "C:\\Tools\\WindowsDesktopUse\\WindowsDesktopUse.App.exe",
+      "args": ["--httpPort", "5000"]
+    }
+  }
+}
+```
+
+#### 3. Claude Desktop を再起動
+Claude Desktop を閉じてから再起動し、新しい MCP サーバーを読み込みます。
+
+---
+
+### 開発者向け（ソースコードからビルド）
+
+#### 1. ビルド
 ```powershell
 dotnet build src/WindowsDesktopUse.App/WindowsDesktopUse.App.csproj -c Release
 ```
 
-### 2. Claude Desktop の設定
+#### 2. Claude Desktop の設定
 **方法 A: 自動セットアップ**
 ```powershell
 WindowsDesktopUse.App.exe setup
