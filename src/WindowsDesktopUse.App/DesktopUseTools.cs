@@ -10,26 +10,6 @@ using WindowsDesktopUse.Transcription;
 
 namespace WindowsDesktopUse.App;
 
-[McpServerToolType]
-public static class DesktopUseTools
-{
-    private static ScreenCaptureService? _capture;
-    private static AudioCaptureService? _audioCapture;
-    private static WhisperTranscriptionService? _whisperService;
-
-    public static void SetCaptureService(ScreenCaptureService capture) => _capture = capture;
-    public static void SetAudioCaptureService(AudioCaptureService audioCapture) => _audioCapture = audioCapture;
-    public static void SetWhisperService(WhisperTranscriptionService whisperService) => _whisperService = whisperService;
-
-    // Enum for capture target types
-    public enum CaptureTargetType
-    {
-        Monitor,
-        Window,
-        Region,
-        Primary
-    }
-
     // Enum for audio source types
     public enum AudioSourceType
     {
@@ -56,6 +36,30 @@ public static class DesktopUseTools
     }
 
     // ============ SCREEN CAPTURE TOOLS ============
+
+    // Custom JSON converter for HWND to handle both string and integer inputs
+    internal class HwndConverter : JsonConverter<long>
+    {
+        public override long? Read(ref Utf8JsonReader reader, Type objectType, long? existingValue,
+            JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                if (long.TryParse(reader.GetString(), out var i))
+                    return i;
+                return null;
+            }
+            return reader.GetInt64();
+        }
+
+        public override void Write(Utf8JsonWriter writer, long? value, JsonSerializerOptions options)
+        {
+            if (value.HasValue)
+                writer.WriteNumberValue(value.Value);
+            else
+                writer.WriteNullValue();
+        }
+    }
 
     [McpServerTool, Description("List all available monitors/displays with their index, name, resolution, and position")]
     public static IReadOnlyList<MonitorInfo> ListMonitors()
