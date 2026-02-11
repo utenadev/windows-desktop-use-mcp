@@ -402,7 +402,7 @@ public static class DesktopUseTools
     [McpServerTool, Description("List available audio capture devices")]
     public static IReadOnlyList<AudioDeviceInfo> ListAudioDevices()
     {
-        return AudioCaptureService.GetAudioDevices().AsReadOnly();
+        return AudioCaptureService.GetAudioDevices();
     }
 
     [McpServerTool, Description("Start audio capture from system or microphone")]
@@ -437,7 +437,7 @@ public static class DesktopUseTools
     [McpServerTool, Description("Get list of active audio capture sessions")]
     public static IReadOnlyList<AudioSession> GetActiveAudioSessions()
     {
-        return (_audioCapture?.GetActiveSessions() ?? new List<AudioSession>()).AsReadOnly();
+        return _audioCapture?.GetActiveSessions() ?? new List<AudioSession>();
     }
 
     // ============ WHISPER SPEECH RECOGNITION TOOLS ============
