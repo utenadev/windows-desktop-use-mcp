@@ -78,7 +78,9 @@ public class McpE2ETests
                     Console.WriteLine($"[Teardown] Closing test Notepad window (HWND: {_testNotepadHwnd})");
                     await _client.CallToolAsync("close_window", new Dictionary<string, object?> { ["hwnd"] = _testNotepadHwnd.Value }).ConfigureAwait(false);
                 }
+#pragma warning disable CA1031
                 catch { }
+#pragma warning restore CA1031
             }
 
             // 2. Kill any other notepad processes that were started during this test
@@ -92,7 +94,9 @@ public class McpE2ETests
                         Console.WriteLine($"[Teardown] Killing unexpected Notepad process (PID: {p.Id})");
                         p.Kill(true);
                     }
+#pragma warning disable CA1031
                     catch { }
+#pragma warning restore CA1031
                 }
             }
 
@@ -111,12 +115,12 @@ public class McpE2ETests
                 var windows = System.Text.Json.JsonSerializer.Deserialize<List<WindowInfo>>(textContent.Text);
                 if (windows != null)
                 {
-                    var notepad = windows.FirstOrDefault(w =>
-                        !string.IsNullOrEmpty(w.Title) && (
-                        w.Title.Contains("Notepad", StringComparison.OrdinalIgnoreCase) ||
-                        w.Title.Contains("メモ帳") ||
-                        w.Title.Contains("無題") ||
-                        w.Title.Contains("Untitled")));
+                var notepad = windows.FirstOrDefault(w =>
+                    !string.IsNullOrEmpty(w.Title) && (
+                    w.Title.Contains("Notepad", StringComparison.OrdinalIgnoreCase) ||
+                    w.Title.Contains("メモ帳", StringComparison.Ordinal) ||
+                    w.Title.Contains("無題", StringComparison.Ordinal) ||
+                    w.Title.Contains("Untitled", StringComparison.OrdinalIgnoreCase)));
 
                     if (notepad != null) return notepad;
                 }
@@ -127,14 +131,14 @@ public class McpE2ETests
     }
 
     [Test]
-    public async Task E2E_ListMonitors_ReturnsValidMonitors()
+    public async Task E2EListMonitorsReturnsValidMonitors()
     {
         var result = await _client!.CallToolAsync("list_monitors", null).ConfigureAwait(false);
         Assert.That(result, Is.Not.Null);
     }
 
     [Test]
-    public async Task E2E_ListWindows_ReturnsValidWindows()
+    public async Task E2EListWindowsReturnsValidWindows()
     {
         var result = await _client!.CallToolAsync("list_windows", null).ConfigureAwait(false);
         Assert.That(result, Is.Not.Null);
@@ -144,7 +148,7 @@ public class McpE2ETests
 
     [Test]
     [Order(1)]
-    public async Task Notepad_1_NavigationKeys()
+    public async Task Notepad1NavigationKeys()
     {
         await _client!.CallToolAsync("keyboard_key", new Dictionary<string, object?> { ["key"] = "enter", ["action"] = "click" }).ConfigureAwait(false);
         await _client.CallToolAsync("keyboard_key", new Dictionary<string, object?> { ["key"] = "space", ["action"] = "click" }).ConfigureAwait(false);
@@ -153,7 +157,7 @@ public class McpE2ETests
 
     [Test]
     [Order(2)]
-    public async Task Notepad_2_MouseOperations()
+    public async Task Notepad2MouseOperations()
     {
         WindowInfo? notepad = null;
         if (_testNotepadHwnd.HasValue)

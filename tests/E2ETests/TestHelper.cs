@@ -1,4 +1,7 @@
+using System.Globalization;
 using ModelContextProtocol.Client;
+
+namespace E2ETests;
 
 public record WindowInfo(long Hwnd, string Title, int W, int H, int X, int Y);
 
@@ -26,11 +29,11 @@ public static class TestHelper
             throw new ArgumentException("Image data is null or empty");
 
         string base64Part;
-        if (data.StartsWith("data:image/") && data.Contains(";base64,"))
+        if (data.StartsWith("data:image/", StringComparison.Ordinal) && data.Contains(";base64,", StringComparison.Ordinal))
         {
             base64Part = data.Split(';')[1].Split(',')[1];
         }
-        else if (data.Contains(";base64,"))
+        else if (data.Contains(";base64,", StringComparison.Ordinal))
         {
             base64Part = data.Split(';')[1].Split(',')[1];
         }
