@@ -625,22 +625,22 @@ public static class DesktopUseTools
             _ => KeyAction.Click
         };
 
-        var virtualKey = key.ToLowerInvariant() switch
+        var virtualKey = key.ToUpperInvariant() switch
         {
-            "enter" or "return" => InputService.VirtualKeys.Enter,
-            "tab" => InputService.VirtualKeys.Tab,
-            "escape" or "esc" => InputService.VirtualKeys.Escape,
-            "space" => InputService.VirtualKeys.Space,
-            "backspace" => InputService.VirtualKeys.Backspace,
-            "delete" or "del" => InputService.VirtualKeys.Delete,
-            "left" => InputService.VirtualKeys.Left,
-            "up" => InputService.VirtualKeys.Up,
-            "right" => InputService.VirtualKeys.Right,
-            "down" => InputService.VirtualKeys.Down,
-            "home" => InputService.VirtualKeys.Home,
-            "end" => InputService.VirtualKeys.End,
-            "pageup" => InputService.VirtualKeys.PageUp,
-            "pagedown" => InputService.VirtualKeys.PageDown,
+            "ENTER" or "RETURN" => InputService.VirtualKeys.Enter,
+            "TAB" => InputService.VirtualKeys.Tab,
+            "ESCAPE" or "ESC" => InputService.VirtualKeys.Escape,
+            "SPACE" => InputService.VirtualKeys.Space,
+            "BACKSPACE" => InputService.VirtualKeys.Backspace,
+            "DELETE" or "DEL" => InputService.VirtualKeys.Delete,
+            "LEFT" => InputService.VirtualKeys.Left,
+            "UP" => InputService.VirtualKeys.Up,
+            "RIGHT" => InputService.VirtualKeys.Right,
+            "DOWN" => InputService.VirtualKeys.Down,
+            "HOME" => InputService.VirtualKeys.Home,
+            "END" => InputService.VirtualKeys.End,
+            "PAGEUP" => InputService.VirtualKeys.PageUp,
+            "PAGEDOWN" => InputService.VirtualKeys.PageDown,
             _ => throw new ArgumentException($"Key '{key}' is not allowed or unknown. Allowed keys: enter, tab, escape, space, backspace, delete, arrow keys, home, end, pageup, pagedown")
         };
 

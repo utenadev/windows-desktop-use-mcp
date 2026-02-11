@@ -543,7 +543,7 @@ whisperCmd.SetHandler((bool list) =>
         var availableModels = WhisperTranscriptionService.GetModelInfo();
         foreach (var kvp in availableModels)
         {
-            var size = kvp.Key.ToString().ToLower();
+            var size = kvp.Key.ToString().ToUpperInvariant();
             Console.WriteLine($"{size}: {kvp.Value.Size} - {kvp.Value.Performance}");
         }
         return;
@@ -565,7 +565,7 @@ whisperCmd.SetHandler((bool list) =>
     Console.WriteLine(GetText("Available Whisper models:", "利用可能なWhisperモデル："));
     foreach (var kvp in models)
     {
-        var size = kvp.Key.ToString().ToLower();
+        var size = kvp.Key.ToString().ToUpperInvariant();
         Console.WriteLine($"  - {size}: {kvp.Value.Size} - {kvp.Value.Performance}");
     }
     Console.WriteLine();
@@ -679,7 +679,7 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
             int i = 1;
             foreach (var seg in result.Segments)
             {
-                var timeStr = seg.Start.ToString(@"mm\:ss");
+                var timeStr = seg.Start.ToString(@"mm\:ss", CultureInfo.InvariantCulture);
                 Console.Error.WriteLine($"[TEST] [{i:D2} {timeStr}] {seg.Text}");
                 i++;
             }

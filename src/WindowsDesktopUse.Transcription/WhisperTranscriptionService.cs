@@ -26,7 +26,7 @@ public class WhisperTranscriptionService : IDisposable
     /// </summary>
     public string GetModelPath(WhisperModelSize size)
     {
-        var modelName = $"ggml-{size.ToString().ToLower()}.bin";
+        var modelName = $"ggml-{size.ToString().ToLowerInvariant()}.bin";
         return Path.Combine(_modelDirectory, modelName);
     }
 
