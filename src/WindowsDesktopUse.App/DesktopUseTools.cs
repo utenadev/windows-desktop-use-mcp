@@ -70,7 +70,7 @@ public static class DesktopUseTools
     public static IReadOnlyList<WindowInfo> ListWindows()
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
-        return _capture.GetWindows();
+        return ScreenCaptureService.GetWindows();
     }
 
     [McpServerTool, Description("Capture a screenshot of specified monitor or window. Returns the captured image as base64 JPEG.")]
@@ -84,7 +84,7 @@ public static class DesktopUseTools
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
         var imageData = targetType == "window" && hwnd.HasValue
-            ? _capture.CaptureWindow(hwnd.Value, maxWidth, quality)
+            ? ScreenCaptureService.CaptureWindow(hwnd.Value, maxWidth, quality)
             : _capture.CaptureSingle(monitor, maxWidth, quality);
 
         var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal) ? imageData.Split(';')[1].Split(',')[1] : imageData;
@@ -104,7 +104,7 @@ public static class DesktopUseTools
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
-        var imageData = _capture.CaptureWindow(hwnd, maxWidth, quality);
+        var imageData = ScreenCaptureService.CaptureWindow(hwnd, maxWidth, quality);
         var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal) ? imageData.Split(';')[1].Split(',')[1] : imageData;
 
         return new ImageContentBlock
@@ -125,7 +125,7 @@ public static class DesktopUseTools
     {
         if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
 
-        var imageData = _capture.CaptureRegion(x, y, w, h, maxWidth, quality);
+        var imageData = ScreenCaptureService.CaptureRegion(x, y, w, h, maxWidth, quality);
         var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal) ? imageData.Split(';')[1].Split(',')[1] : imageData;
 
         return new ImageContentBlock
@@ -243,7 +243,7 @@ public static class DesktopUseTools
 
         if (filter == "all" || filter == "windows")
         {
-            var windowList = _capture.GetWindows();
+            var windowList = ScreenCaptureService.GetWindows();
             windows = windowList.Select(w => new CaptureTarget(
                 "window",
                 w.Hwnd.ToString(CultureInfo.InvariantCulture),
@@ -298,7 +298,7 @@ public static class DesktopUseTools
                 if (targetId == null) throw new ArgumentNullException(nameof(targetId), "Target ID is required for window capture");
                 if (!long.TryParse(targetId, out var hwnd))
                     throw new ArgumentException("Invalid window handle");
-                imageData = _capture.CaptureWindow(hwnd, maxWidth, quality);
+                imageData = ScreenCaptureService.CaptureWindow(hwnd, maxWidth, quality);
                 actualTargetType = "window";
                 actualTargetId = hwnd.ToString(CultureInfo.InvariantCulture);
                 break;
@@ -306,7 +306,7 @@ public static class DesktopUseTools
             case CaptureTargetType.Region:
                 if (!x.HasValue || !y.HasValue || !w.HasValue || !h.HasValue)
                     throw new ArgumentException("Region capture requires x, y, w, h");
-                imageData = _capture.CaptureRegion(x.Value, y.Value, w.Value, h.Value, maxWidth, quality);
+                imageData = ScreenCaptureService.CaptureRegion(x.Value, y.Value, w.Value, h.Value, maxWidth, quality);
                 actualTargetType = "region";
                 actualTargetId = $"{x.Value},{y.Value},{w.Value},{h.Value}";
                 capturedWidth = w.Value;
@@ -576,7 +576,7 @@ public static class DesktopUseTools
         [Description("Y coordinate")] int y)
     {
         if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
-        _inputService.MoveMouse(x, y);
+        InputService.MoveMouse(x, y);
     }
 
     [McpServerTool, Description("Click mouse button")]
@@ -595,7 +595,7 @@ public static class DesktopUseTools
             _ => throw new ArgumentException($"Invalid button: {button}")
         };
 
-        _inputService.ClickMouseAsync(mouseButton, count).GetAwaiter().GetResult();
+        InputService.ClickMouseAsync(mouseButton, count).GetAwaiter().GetResult();
     }
 
     [McpServerTool, Description("Drag mouse from start to end position")]
@@ -606,7 +606,7 @@ public static class DesktopUseTools
         [Description("End Y")] int endY)
     {
         if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
-        _inputService.DragMouseAsync(startX, startY, endX, endY).GetAwaiter().GetResult();
+        InputService.DragMouseAsync(startX, startY, endX, endY).GetAwaiter().GetResult();
     }
 
     [McpServerTool, Description("Press a navigation key (security restricted)")]
@@ -644,7 +644,7 @@ public static class DesktopUseTools
             _ => throw new ArgumentException($"Key '{key}' is not allowed or unknown. Allowed keys: enter, tab, escape, space, backspace, delete, arrow keys, home, end, pageup, pagedown")
         };
 
-        _inputService.PressKey(virtualKey, keyAction);
+        InputService.PressKey(virtualKey, keyAction);
     }
 
     [McpServerTool, Description("Close a window by its handle (HWND)")]
@@ -652,6 +652,6 @@ public static class DesktopUseTools
         [Description("Window handle (HWND) to close")] long hwnd)
     {
         if (_inputService == null) throw new InvalidOperationException("InputService not initialized");
-        _inputService.TerminateWindowProcess(new IntPtr(hwnd));
+        InputService.TerminateWindowProcess(new IntPtr(hwnd));
     }
 }

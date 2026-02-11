@@ -173,7 +173,7 @@ public sealed class HybridCaptureService : ICaptureService, IDisposable
     private Bitmap CaptureWindowLegacy(IntPtr hwnd)
     {
         var hwndLong = hwnd.ToInt64();
-        var imageData = _legacy.CaptureWindow(hwndLong, 1920, 80);
+        var imageData = ScreenCaptureService.CaptureWindow(hwndLong, 1920, 80);
 
         var base64Data = imageData.Contains(";base64,", StringComparison.Ordinal)
             ? imageData.Split(',')[1]

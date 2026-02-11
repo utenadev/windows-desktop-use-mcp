@@ -145,7 +145,7 @@ public class ScreenCaptureService
         }
     }
 
-    private string ToJpegBase64(Bitmap src, int maxW, int q)
+    private static string ToJpegBase64(Bitmap src, int maxW, int q)
     {
         using var ms = new MemoryStream();
         var target = src.Width > maxW ? new Bitmap(src, new Size(maxW, (int)(src.Height * ((double)maxW / src.Width)))) : src;
@@ -199,7 +199,7 @@ public class ScreenCaptureService
         return true;
     }
 
-    public IReadOnlyList<WindowInfo> GetWindows()
+    public static IReadOnlyList<WindowInfo> GetWindows()
     {
         var windows = new List<WindowInfo>();
         var handle = GCHandle.Alloc(windows);
@@ -209,7 +209,7 @@ public class ScreenCaptureService
             {
                 if (!IsWindowVisible(hwnd)) return true;
                 var sb = new System.Text.StringBuilder(256);
-                GetWindowText(hwnd, sb, 256);
+                _ = GetWindowText(hwnd, sb, 256);
                 var title = sb.ToString();
                 if (string.IsNullOrWhiteSpace(title)) return true;
 
@@ -230,7 +230,7 @@ public class ScreenCaptureService
         return windows;
     }
 
-    public string CaptureWindow(long hwnd, int maxW, int quality)
+    public static string CaptureWindow(long hwnd, int maxW, int quality)
     {
         var hWnd = new IntPtr(hwnd);
         if (!IsWindowVisible(hWnd))
@@ -273,7 +273,7 @@ public class ScreenCaptureService
         return ToJpegBase64(bmp, maxW, quality);
     }
 
-    public string CaptureRegion(int x, int y, int w, int h, int maxW, int quality)
+    public static string CaptureRegion(int x, int y, int w, int h, int maxW, int quality)
     {
         if (w <= 0 || h <= 0)
             throw new ArgumentException($"Invalid region dimensions: {w}x{h}");

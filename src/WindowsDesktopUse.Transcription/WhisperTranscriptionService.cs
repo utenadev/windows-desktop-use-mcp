@@ -94,7 +94,7 @@ public class WhisperTranscriptionService : IDisposable
     /// <summary>
     /// Convert audio to Whisper-compatible format (16kHz, 16bit, mono PCM)
     /// </summary>
-    private string ConvertToWhisperFormat(string inputPath)
+    private static string ConvertToWhisperFormat(string inputPath)
     {
         var outputPath = Path.Combine(Path.GetTempPath(), $"whisper_converted_{Guid.NewGuid()}.wav");
 

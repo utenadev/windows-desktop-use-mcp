@@ -97,7 +97,7 @@ public class InputService
     /// <summary>
     /// Move mouse cursor to absolute position using SendInput
     /// </summary>
-    public void MoveMouse(int x, int y)
+    public static void MoveMouse(int x, int y)
     {
         var input = new INPUT
         {
@@ -116,13 +116,13 @@ public class InputService
             }
         };
 
-        SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
+        _ = SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
     }
 
     /// <summary>
     /// Get current mouse position
     /// </summary>
-    public (int x, int y) GetMousePosition()
+    public static (int x, int y) GetMousePosition()
     {
         GetCursorPos(out var point);
         return (point.X, point.Y);
@@ -131,7 +131,7 @@ public class InputService
     /// <summary>
     /// Click mouse button using SendInput
     /// </summary>
-    public async Task ClickMouseAsync(MouseButton button, int count = 1)
+    public static async Task ClickMouseAsync(MouseButton button, int count = 1)
     {
         for (int i = 0; i < count; i++)
         {
@@ -179,8 +179,8 @@ public class InputService
                 }
             };
 
-            SendInput(1, new[] { downInput }, Marshal.SizeOf(typeof(INPUT)));
-            SendInput(1, new[] { upInput }, Marshal.SizeOf(typeof(INPUT)));
+            _ = SendInput(1, new[] { downInput }, Marshal.SizeOf(typeof(INPUT)));
+            _ = SendInput(1, new[] { upInput }, Marshal.SizeOf(typeof(INPUT)));
 
             if (i < count - 1)
             {
@@ -192,7 +192,7 @@ public class InputService
     /// <summary>
     /// Drag and drop from start to end position using SendInput
     /// </summary>
-    public async Task DragMouseAsync(int startX, int startY, int endX, int endY)
+    public static async Task DragMouseAsync(int startX, int startY, int endX, int endY)
     {
         // Move to start position
         MoveMouse(startX, startY);
@@ -215,7 +215,7 @@ public class InputService
                 }
             }
         };
-        SendInput(1, new[] { downInput }, Marshal.SizeOf(typeof(INPUT)));
+        _ = SendInput(1, new[] { downInput }, Marshal.SizeOf(typeof(INPUT)));
         await Task.Delay(50).ConfigureAwait(false);
 
         // Move to end position
@@ -239,14 +239,14 @@ public class InputService
                 }
             }
         };
-        SendInput(1, new[] { upInput }, Marshal.SizeOf(typeof(INPUT)));
+        _ = SendInput(1, new[] { upInput }, Marshal.SizeOf(typeof(INPUT)));
     }
 
     /// <summary>
     /// Press a virtual key using SendInput
     /// Security: Only safe navigation keys are allowed
     /// </summary>
-    public void PressKey(ushort virtualKey, KeyAction action = KeyAction.Click)
+    public static void PressKey(ushort virtualKey, KeyAction action = KeyAction.Click)
     {
         // Security check: Only allow safe navigation keys
         if (!IsAllowedKey(virtualKey))
@@ -272,9 +272,9 @@ public class InputService
     /// <summary>
     /// Terminate the process that owns the specified window
     /// </summary>
-    public void TerminateWindowProcess(IntPtr hWnd)
+    public static void TerminateWindowProcess(IntPtr hWnd)
     {
-        GetWindowThreadProcessId(hWnd, out var processId);
+        _ = GetWindowThreadProcessId(hWnd, out var processId);
         if (processId == 0) return;
 
         try
@@ -339,7 +339,7 @@ public class InputService
             }
         };
 
-        SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
+        _ = SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
     }
 
     /// <summary>
