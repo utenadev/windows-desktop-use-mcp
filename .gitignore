@@ -51,6 +51,13 @@ publish_test/
 # Artifacts
 t/
 
+# Executables
+*.exe
+*.dll
+*.pdb
+*.zip
+*.tar.gz
+*.nupkg
+
 # Windows special files
 nul
-WindowsDesktopUse.zip

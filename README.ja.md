@@ -123,12 +123,12 @@ WindowsDesktopUse.App.exe whisper --list   # モデル一覧のみ表示
 - `keyboard_key`: 安全なナビゲーションキー（Enter, Tab, 矢印キー等）の操作。セキュリティのため、テキスト入力と修飾キー（Ctrl, Alt, Win）はブロックされています。
 
 > ### ⚠️ hwnd を使う際の注意
-> Windowsハンドル（HWND）は整数値です。
-> ツール呼び出し時に文字列として渡すと `params/hwnd must be integer,null` エラーになります。
+> Windowsハンドル（HWND）は整数値ですが、MCPツールでは文字列としても受け付けるようになりました。
+> これにより、JSON経由での数値送信時に発生していた `params/hwnd must be integer,null` エラーを回避できます。
 >
 > **対応方法:**
-> - `list_windows` で取得した hwnd は、そのまま整数として使用してください
-> - もしエラーが出た場合は、`parseInt(hwnd)` 相当の処理が必要な可能性があります（環境依存）
+> - `list_windows` で取得した hwnd は、整数または文字列として使用できます
+> - 以前の整数形式も引き続きサポートしています
 
  詳細な引数や使用例については、[**ツールガイド**](docs/TOOLS.ja.md) を参照してください。
 
