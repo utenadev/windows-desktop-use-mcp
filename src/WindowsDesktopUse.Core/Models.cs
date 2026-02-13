@@ -24,6 +24,10 @@ public class StreamSession : IDisposable
     public int Interval { get; set; }
     public int Quality { get; set; }
     public int MaxW { get; set; }
+    public int RegionX { get; set; }
+    public int RegionY { get; set; }
+    public int RegionW { get; set; }
+    public int RegionH { get; set; }
     public CancellationTokenSource Cts { get; set; } = new();
     public Channel<string> Channel { get; }
 

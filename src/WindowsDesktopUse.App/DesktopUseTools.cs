@@ -145,6 +145,58 @@ public static class DesktopUseTools
         };
     }
 
+    [McpServerTool, Description("Start RTSP-like streaming of a screen region (640x360@15fps, wifi-cam-mcp compatible). Returns session ID.")]
+    public static WatchSession CameraCaptureStream(
+        McpServer server,
+        [Description("X coordinate of region")] int x,
+        [Description("Y coordinate of region")] int y,
+        [Description("Width of region")] int w,
+        [Description("Height of region")] int h,
+        [Description("JPEG quality (1-100)")] int quality = 80)
+    {
+        try
+        {
+            Console.Error.WriteLine($"[CameraCaptureStream] Called with x={x}, y={y}, w={w}, h={h}, quality={quality}");
+            Console.Error.WriteLine($"[CameraCaptureStream] _capture is null: {_capture == null}");
+            
+            if (_capture == null) throw new InvalidOperationException("ScreenCaptureService not initialized");
+            if (server == null) throw new ArgumentNullException(nameof(server), "McpServer cannot be null");
+            if (quality < 1 || quality > 100) throw new ArgumentOutOfRangeException(nameof(quality), "Quality must be between 1 and 100");
+
+            Console.Error.WriteLine($"[CameraCaptureStream] Starting OnFrameCaptured callback setup");
+            
+            _capture.OnFrameCaptured = async (sessionId, imageData) =>
+            {
+                var notificationData = new Dictionary<string, object?>
+                {
+                    ["level"] = "info",
+                    ["data"] = new Dictionary<string, string>
+                    {
+                        ["sessionId"] = sessionId,
+                        ["image"] = imageData,
+                        ["type"] = "frame"
+                    }
+                };
+                await server.SendNotificationAsync("notifications/message", notificationData).ConfigureAwait(false);
+            };
+
+            Console.Error.WriteLine($"[CameraCaptureStream] Calling StartRegionStream2");
+            
+            var sessionId = _capture.StartRegionStream2(x, y, w, h, quality);
+            var targetId = $"{x},{y},{w},{h}";
+
+            Console.Error.WriteLine($"[CameraCaptureStream] Created session {sessionId}");
+
+            return new WatchSession(sessionId, "region2", targetId, 1000 / 15, "active");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[CameraCaptureStream] ERROR: {ex.GetType().Name}: {ex.Message}");
+            Console.Error.WriteLine($"[CameraCaptureStream] StackTrace: {ex.StackTrace}");
+            throw;
+        }
+    }
+
     /// <summary>
     /// Starts a continuous screen capture stream.
     /// Accepts hwnd as string for compatibility with JSON clients that serialize numbers as strings.

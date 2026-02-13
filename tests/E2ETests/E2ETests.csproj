@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\WindowsDesktopUse.App\WindowsDesktopUse.App.csproj" />
+    <ProjectReference Include="..\..\src\WindowsDesktopUse.Core\WindowsDesktopUse.Core.csproj" />
   </ItemGroup>
 
 </Project>

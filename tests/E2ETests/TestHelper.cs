@@ -9,6 +9,11 @@ public record MonitorInfo(uint Idx, string Name, int W, int H, int X, int Y);
 
 public static class TestHelper
 {
+    private static readonly System.Text.Json.JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     public static async Task<McpClient> CreateStdioClientAsync(string serverPath, string[] args)
     {
         var serverTransport = new StdioClientTransport(new StdioClientTransportOptions
@@ -21,6 +26,11 @@ public static class TestHelper
         var client = await McpClient.CreateAsync(serverTransport).ConfigureAwait(false);
 
         return client;
+    }
+
+    public static T? DeserializeJson<T>(string json) where T : class
+    {
+        return System.Text.Json.JsonSerializer.Deserialize<T>(json, _jsonOptions);
     }
 
     public static void ValidateBase64Image(string data, int minLength = 1000)

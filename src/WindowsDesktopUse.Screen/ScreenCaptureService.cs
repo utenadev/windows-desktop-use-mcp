@@ -295,6 +295,121 @@ public class ScreenCaptureService
         return ToJpegBase64(bmp, maxW, quality);
     }
 
+    private const int Stream2Width = 640;
+    private const int Stream2Height = 360;
+    private const int Stream2Fps = 15;
+
+    public string StartRegionStream2(int x, int y, int w, int h, int quality)
+    {
+        Console.Error.WriteLine($"[Stream2] StartRegionStream2 called: x={x}, y={y}, w={w}, h={h}, quality={quality}");
+        if (w <= 0 || h <= 0)
+            throw new ArgumentException($"Invalid region dimensions: {w}x{h}");
+
+        var id = Guid.NewGuid().ToString();
+        var sess = new StreamSession
+        {
+            Id = id,
+            TargetType = "region2",
+            Interval = 1000 / Stream2Fps,
+            Quality = quality,
+            MaxW = Stream2Width,
+            RegionX = x,
+            RegionY = y,
+            RegionW = w,
+            RegionH = h
+        };
+        _sessions[id] = sess;
+        _ = StreamLoop2(sess);
+        return id;
+    }
+
+    private async Task StreamLoop2(StreamSession s)
+    {
+        try
+        {
+            while (!s.Cts.Token.IsCancellationRequested)
+            {
+                var start = DateTime.UtcNow;
+                try
+                {
+                    var img = CaptureRegionFixed(s.RegionX, s.RegionY, s.RegionW, s.RegionH, s.Quality);
+                    await s.Channel.Writer.WriteAsync(img, s.Cts.Token).ConfigureAwait(false);
+
+                    s.LatestFrame = img;
+                    s.LastCaptureTime = DateTime.UtcNow;
+
+                    if (OnFrameCaptured != null)
+                    {
+                        try
+                        {
+                            await OnFrameCaptured(s.Id, img).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine($"[Stream2 {s.Id}] Failed to send notification: {ex.Message}");
+                        }
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    Console.Error.WriteLine($"[Stream2 {s.Id}] Capture error: {ex.Message}");
+                    await Task.Delay(1000, s.Cts.Token).ConfigureAwait(false);
+                    continue;
+                }
+
+                var elapsed = (int)(DateTime.UtcNow - start).TotalMilliseconds;
+                var delay = s.Interval - elapsed;
+                if (delay > 0)
+                {
+                    try
+                    {
+                        await Task.Delay(delay, s.Cts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Stream2 {s.Id}] Fatal error: {ex.Message}");
+        }
+        finally
+        {
+            s.Channel.Writer.Complete();
+            Console.Error.WriteLine($"[Stream2 {s.Id}] Completed");
+        }
+    }
+
+    private string CaptureRegionFixed(int x, int y, int w, int h, int quality)
+    {
+        using var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+            g.CopyFromScreen(x, y, 0, 0, new Size(w, h), CopyPixelOperation.SourceCopy);
+        }
+        return ToJpegBase64Fixed(bmp, quality);
+    }
+
+    private static string ToJpegBase64Fixed(Bitmap src, int q)
+    {
+        using var ms = new MemoryStream();
+        using var target = new Bitmap(src, new Size(Stream2Width, Stream2Height));
+        var codec = ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
+        var p = new EncoderParameters(1);
+        p.Param[0] = new EncoderParameter(Encoder.Quality, q);
+        target.Save(ms, codec, p);
+        return Convert.ToBase64String(ms.ToArray());
+    }
+
     [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)] struct MONITORINFOEX { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string szDevice; }
 }
