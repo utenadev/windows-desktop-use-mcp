@@ -3,6 +3,8 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using WindowsDesktopUse.Core;
 
+using static E2ETests.TestHelper;
+
 namespace E2ETests;
 
 [TestFixture]
@@ -59,6 +61,10 @@ public class VideoCaptureE2ETests
     [Test]
     public async Task WatchVideo_ActiveWindow_ReturnsSessionId()
     {
+        // Skip on CI - requires active video window to be running
+        if (IsCiEnvironment())
+            Assert.Ignore("Skipping on CI: Requires active video window (YouTube, etc.) to be running");
+
         var result = await _client!.CallToolAsync("watch_video", new Dictionary<string, object?>
         {
             ["targetName"] = "ActiveWindow",

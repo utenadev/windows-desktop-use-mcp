@@ -56,4 +56,10 @@ public static class TestHelper
         if (imageBytes.Length < minLength)
             throw new ArgumentException($"Image data too short: {imageBytes.Length} bytes (expected at least {minLength})");
     }
+
+    public static bool IsCiEnvironment()
+    {
+        return Environment.GetEnvironmentVariable("CI") == "true" ||
+               Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+    }
 }

@@ -2,6 +2,8 @@ using System.Diagnostics;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
+using static E2ETests.TestHelper;
+
 namespace E2ETests;
 
 [TestFixture]
@@ -58,6 +60,10 @@ public class Spiral1E2ETests
     [Test]
     public async Task WatchVideoV1_StartsSuccessfully()
     {
+        // Skip on CI - requires active video window to be running
+        if (IsCiEnvironment())
+            Assert.Ignore("Skipping on CI: Requires active video window (YouTube, etc.) to be running");
+
         var result = await _client!.CallToolAsync("watch_video_v1", new Dictionary<string, object?>
         {
             ["x"] = 100,

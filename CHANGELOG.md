@@ -47,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed method return value usage (CA1806, CA1822).
 - **Async Optimization**: Replaced Thread.Sleep with Task.Delay for better async performance.
 - **Test Code Quality**: Fixed all static analysis warnings in E2E tests (CA1031, CA1050, CA1307, CA1310, CA1707).
+- **Static Analysis**: Changed AnalysisMode from 'All' to 'Recommended' to reduce CI build errors.
+  - Updated AnalysisLevel from 'latest-all' to 'latest-recommended' in all project files.
 
 ### Fixed
 - Stabilized E2E tests by ensuring a fresh application instance is used for each suite.
