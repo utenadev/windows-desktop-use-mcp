@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **Structured Payload**: JSON format with timestamp, window metadata, change detection results, and Base64 image data.
     - **MCP Tools**: `watch_video`, `stop_watch_video`, and `get_latest_video_frame` for video stream management.
     - **Memory Management**: Proper disposal of Bitmap/Graphics objects using `using` blocks.
+- **`watch_video_v1` Tool (Spiral 1)**: Prototype unified video/audio capture with synchronized timeline.
+    - **Unified Timeline**: `UnifiedEventPayload` with `RelativeTime` for video/audio synchronization.
+    - **StreamSession Enhancement**: Added `StartTime` and `RelativeTime` property for time-based coordination.
+    - **Whisper OS Language Detection**: Auto-detects OS language for transcription using `CultureInfo.CurrentCulture`.
+    - **Combined Capture**: Integrates video capture with audio transcription in a single session.
 - **`close_window` Tool**: New tool to terminate a process by its window handle (HWND).
 - **Process Identification**: Added `GetWindowThreadProcessId` P/Invoke to `InputService` to link windows to their owning processes.
 - **Unit Tests**: Added comprehensive tests for `VisualChangeDetector` and `VideoTargetFinder` components.

@@ -35,7 +35,7 @@ public class StreamSession : IDisposable
     /// <summary>
     /// Gets the relative time in seconds from session start
     /// </summary>
-    public double GetRelativeTime() => (DateTime.UtcNow - StartTime).TotalSeconds;
+    public double RelativeTime => (DateTime.UtcNow - StartTime).TotalSeconds;
 
     private string _latestFrame = "";
     private readonly object _frameLock = new();

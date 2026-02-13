@@ -20,7 +20,7 @@ public class UnifiedTimelineTests
     }
 
     [Test]
-    public void StreamSession_GetRelativeTime_ShouldReturnPositiveValue()
+    public void StreamSession_RelativeTime_ShouldReturnPositiveValue()
     {
         var session = new StreamSession
         {
@@ -28,7 +28,7 @@ public class UnifiedTimelineTests
             StartTime = DateTime.UtcNow.AddSeconds(-5) // Started 5 seconds ago
         };
 
-        var relativeTime = session.GetRelativeTime();
+        var relativeTime = session.RelativeTime;
 
         Assert.That(relativeTime, Is.GreaterThan(4.0));
         Assert.That(relativeTime, Is.LessThan(10.0));
