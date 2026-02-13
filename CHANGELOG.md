@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Incident Report**: Added `docs/report/report_20260209_notepad_e2e_fix.md` documenting the challenges with Windows 11 Notepad automation.
 
 ### Changed
+- **Project Cleanup**: Organized repository by moving old documentation and removing obsolete files.
+    - Moved legacy design docs and feature memos to `docs/old/`.
+    - Removed `build_history/` from Git tracking and added to `.gitignore`.
+    - Cleaned up temporary test artifacts in `t/`.
+    - Removed default `UnitTest1.cs` from E2E tests.
 - **Code Quality Improvements**: Resolved all static analysis warnings and improved maintainability.
   - Fixed culture-dependent method calls (CA1304, CA1305, CA1307, CA1308, CA1311).
   - Implemented proper IDisposable pattern (CA1063, CA1816, CA1001).
