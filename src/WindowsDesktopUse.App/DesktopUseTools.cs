@@ -1434,4 +1434,390 @@ public static class DesktopUseTools
 
         return $"Session not found: {sessionId}";
     }
+
+    // ============ NEW UNIFIED TOOLS (v2.0) ============
+
+    private static SessionManager? _sessionManager;
+
+    public static void SetSessionManager(SessionManager sessionManager) => _sessionManager = sessionManager;
+
+    // Enum for visual target types
+    public enum VisualTargetType
+    {
+        All,
+        Monitor,
+        Window
+    }
+
+    // Enum for visual capture modes
+    public enum VisualCaptureMode
+    {
+        Normal,
+        Detailed
+    }
+
+    // Enum for watch modes
+    public enum VisualWatchMode
+    {
+        Video,
+        Monitor,
+        Unified
+    }
+
+    // Enum for mouse actions
+    public enum MouseActionType
+    {
+        Move,
+        Click,
+        Drag
+    }
+
+    // Enum for window actions
+    public enum WindowActionType
+    {
+        Close,
+        Minimize,
+        Maximize,
+        Restore
+    }
+
+    /// <summary>
+    /// Unified tool to list visual targets (monitors, windows, or all)
+    /// </summary>
+    [McpServerTool, Description("List visual targets (monitors, windows, or all). Replaces: list_monitors, list_windows, list_all.")]
+    public static object VisualList(
+        [Description("Target type: 'monitor', 'window', or 'all' (default)")] string type = "all",
+        [Description("Filter by title (for windows)")] string? filter = null)
+    {
+        if (_capture == null)
+            throw new InvalidOperationException("ScreenCaptureService not initialized");
+
+        var targetType = Enum.TryParse<VisualTargetType>(type, true, out var parsed) ? parsed : VisualTargetType.All;
+
+        switch (targetType)
+        {
+            case VisualTargetType.Monitor:
+                var monitors = _capture.GetMonitors();
+                return new { type = "monitors", count = monitors.Count, items = monitors };
+
+            case VisualTargetType.Window:
+                var windows = ScreenCaptureService.GetWindows();
+                if (!string.IsNullOrEmpty(filter))
+                {
+                    windows = windows.Where(w => w.Title.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+                }
+                return new { type = "windows", count = windows.Count, items = windows };
+
+            case VisualTargetType.All:
+            default:
+                var allMonitors = _capture.GetMonitors();
+                var allWindows = ScreenCaptureService.GetWindows();
+                if (!string.IsNullOrEmpty(filter))
+                {
+                    allWindows = allWindows.Where(w => w.Title.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+                }
+                return new 
+                { 
+                    type = "all", 
+                    monitors = new { count = allMonitors.Count, items = allMonitors },
+                    windows = new { count = allWindows.Count, items = allWindows }
+                };
+        }
+    }
+
+    /// <summary>
+    /// Unified tool to capture visual content with dynamic quality control
+    /// </summary>
+    [McpServerTool, Description("Capture visual content (monitor, window, or region) with dynamic quality. Replaces: capture, see, capture_window, capture_region. CRITICAL: Returns large base64 data. Process immediately and discard.")]
+    public static async Task<object> VisualCapture(
+        [Description("Target type: 'monitor', 'window', 'region', or 'primary' (default)")] string target = "primary",
+        [Description("Monitor index (for 'monitor' type)")] uint monitorIndex = 0,
+        [Description("Window handle (for 'window' type)")] long? hwnd = null,
+        [Description("Region X (for 'region' type)")] int x = 0,
+        [Description("Region Y (for 'region' type)")] int y = 0,
+        [Description("Region width (for 'region' type)")] int w = 640,
+        [Description("Region height (for 'region' type)")] int h = 360,
+        [Description("Capture mode: 'normal' (quality=30, default) or 'detailed' (quality=70)")] string mode = "normal",
+        [Description("Maximum width for resizing")] int maxWidth = 640)
+    {
+        if (_capture == null)
+            throw new InvalidOperationException("ScreenCaptureService not initialized");
+
+        var captureMode = Enum.TryParse<VisualCaptureMode>(mode, true, out var parsed) ? parsed : VisualCaptureMode.Normal;
+        var quality = captureMode == VisualCaptureMode.Detailed ? 70 : 30;
+
+        string imageData;
+
+        switch (target.ToLowerInvariant())
+        {
+            case "monitor":
+                imageData = _capture.CaptureSingle(monitorIndex, maxWidth, quality);
+                break;
+
+            case "window":
+                if (!hwnd.HasValue)
+                    throw new ArgumentException("hwnd is required for window capture");
+                imageData = ScreenCaptureService.CaptureWindow(hwnd.Value, maxWidth, quality);
+                break;
+
+            case "region":
+                imageData = ScreenCaptureService.CaptureRegion(x, y, w, h, maxWidth, quality);
+                break;
+
+            case "primary":
+            default:
+                imageData = _capture.CaptureSingle(0, maxWidth, quality);
+                break;
+        }
+
+        return new
+        {
+            target,
+            mode = captureMode.ToString().ToLowerInvariant(),
+            quality,
+            image = imageData,
+            _llm_instruction = new
+            {
+                action = "PROCESS_IMMEDIATELY_AND_DISCARD",
+                steps = new[]
+                {
+                    "1. Extract visual information from the image.",
+                    "2. Record findings as TEXT only.",
+                    "3. DELETE the 'image' field from your context immediately."
+                },
+                token_warning = $"This image consumes approx {imageData.Length / 3}+ tokens. Discarding saves 95% memory."
+            }
+        };
+    }
+
+    /// <summary>
+    /// Unified tool to start watching visual content with different modes
+    /// </summary>
+    [McpServerTool, Description("Start watching visual content with different modes (video, monitor, unified). Replaces: watch, watch_video_v2, monitor. CRITICAL: Returns large base64 data. Process immediately and discard.")]
+    public static async Task<string> VisualWatch(
+        McpServer server,
+        [Description("Watch mode: 'video', 'monitor', or 'unified' (default: video)")] string mode = "video",
+        [Description("Target type: 'monitor', 'window', or 'region'")] string target = "monitor",
+        [Description("Monitor index (for 'monitor' type)")] uint monitorIndex = 0,
+        [Description("Window handle (for 'window' type)")] long? hwnd = null,
+        [Description("Region X (for 'region' type)")] int x = 0,
+        [Description("Region Y (for 'region' type)")] int y = 0,
+        [Description("Region width (for 'region' type)")] int w = 640,
+        [Description("Region height (for 'region' type)")] int h = 360,
+        [Description("Frame rate (fps), default 5")] int fps = 5,
+        [Description("Enable change detection, default true")] bool detectChanges = true,
+        [Description("Change threshold (0.05-0.20), default 0.08")] double threshold = 0.08)
+    {
+        if (_sessionManager == null)
+            throw new InvalidOperationException("SessionManager not initialized");
+        if (_capture == null)
+            throw new InvalidOperationException("ScreenCaptureService not initialized");
+
+        var watchMode = Enum.TryParse<VisualWatchMode>(mode, true, out var parsed) ? parsed : VisualWatchMode.Video;
+        var session = new UnifiedSession
+        {
+            Type = SessionType.Watch,
+            Target = target,
+            Metadata = new Dictionary<string, object>
+            {
+                ["mode"] = mode,
+                ["target"] = target,
+                ["fps"] = fps,
+                ["detectChanges"] = detectChanges,
+                ["threshold"] = threshold
+            }
+        };
+
+        var sessionId = _sessionManager.RegisterSession(session);
+        var intervalMs = 1000 / fps;
+
+        _ = Task.Run(async () =>
+        {
+            var nextCaptureTime = DateTime.UtcNow;
+            
+            while (!session.Cts.IsCancellationRequested)
+            {
+                var waitMs = (int)(nextCaptureTime - DateTime.UtcNow).TotalMilliseconds;
+                if (waitMs > 0)
+                {
+                    try { await Task.Delay(waitMs, session.Cts.Token); }
+                    catch (OperationCanceledException) { break; }
+                }
+
+                try
+                {
+                    string imageData;
+                    var quality = 30; // Normal mode quality
+                    
+                    switch (target.ToLowerInvariant())
+                    {
+                        case "window":
+                            if (!hwnd.HasValue) continue;
+                            imageData = ScreenCaptureService.CaptureWindow(hwnd.Value, 640, quality);
+                            break;
+                        case "region":
+                            imageData = ScreenCaptureService.CaptureRegion(x, y, w, h, 640, quality);
+                            break;
+                        case "monitor":
+                        default:
+                            imageData = _capture.CaptureSingle(monitorIndex, 640, quality);
+                            break;
+                    }
+
+                    var captureTime = DateTime.UtcNow;
+                    var ts = (captureTime - session.StartTime).TotalSeconds;
+                    nextCaptureTime = nextCaptureTime.AddMilliseconds(intervalMs);
+
+                    var notificationData = new Dictionary<string, object?>
+                    {
+                        ["level"] = "info",
+                        ["data"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "visual_watch",
+                            ["sessionId"] = sessionId,
+                            ["mode"] = mode,
+                            ["ts"] = Math.Round(ts, 1),
+                            ["image"] = imageData,
+                            ["_llm_instruction"] = new Dictionary<string, object>
+                            {
+                                ["action"] = "PROCESS_IMMEDIATELY_AND_DISCARD",
+                                ["steps"] = new[]
+                                {
+                                    "1. Extract visual information from the image.",
+                                    "2. Record findings as TEXT only.",
+                                    "3. DELETE the 'image' field from your context immediately."
+                                },
+                                ["token_warning"] = $"This image consumes approx {imageData.Length / 3}+ tokens. Discarding saves 95% memory."
+                            }
+                        }
+                    };
+
+                    await server.SendNotificationAsync("notifications/message", notificationData);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[VisualWatch] Error: {ex.Message}");
+                    nextCaptureTime = nextCaptureTime.AddMilliseconds(intervalMs);
+                }
+            }
+        }, session.Cts.Token);
+
+        return sessionId;
+    }
+
+    /// <summary>
+    /// Unified tool to stop any visual or input session
+    /// </summary>
+    [McpServerTool, Description("Stop any active session (visual or input). Replaces all stop_* tools.")]
+    public static string VisualStop(
+        [Description("Session ID to stop")] string sessionId,
+        [Description("Stop all sessions of this type: 'watch', 'capture', 'audio', 'monitor', or 'all' (default)")] string type = "all")
+    {
+        if (_sessionManager == null)
+            throw new InvalidOperationException("SessionManager not initialized");
+
+        if (type.ToLowerInvariant() == "all" && string.IsNullOrEmpty(sessionId))
+        {
+            _sessionManager.StopAllSessions();
+            return "Stopped all sessions";
+        }
+
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            if (_sessionManager.StopSession(sessionId))
+                return $"Stopped session {sessionId}";
+            return $"Session not found: {sessionId}";
+        }
+
+        if (Enum.TryParse<SessionType>(type, true, out var sessionType))
+        {
+            var count = _sessionManager.StopSessionsByType(sessionType);
+            return $"Stopped {count} sessions of type {type}";
+        }
+
+        return "Invalid session type or ID";
+    }
+
+    /// <summary>
+    /// Unified tool for mouse operations
+    /// </summary>
+    [McpServerTool, Description("Perform mouse operations (move, click, drag). Replaces: mouse_move, mouse_click, mouse_drag.")]
+    public static string InputMouse(
+        [Description("Mouse action: 'move', 'click', or 'drag'")] string action,
+        [Description("X coordinate")] int x,
+        [Description("Y coordinate")] int y,
+        [Description("End X coordinate (for drag)")] int? endX = null,
+        [Description("End Y coordinate (for drag)")] int? endY = null,
+        [Description("Mouse button: 'left' (default), 'right', or 'middle'")] string button = "left",
+        [Description("Number of clicks (for click action), default 1")] int clicks = 1)
+    {
+        var actionType = Enum.TryParse<MouseActionType>(action, true, out var parsed) ? parsed : MouseActionType.Move;
+        var buttonName = Enum.TryParse<MouseButtonName>(button, true, out var btn) ? btn : MouseButtonName.Left;
+
+        switch (actionType)
+        {
+            case MouseActionType.Move:
+                InputService.MoveMouse(x, y);
+                return $"Mouse moved to ({x}, {y})";
+
+            case MouseActionType.Click:
+                InputService.MoveMouse(x, y);
+                var mouseButton = buttonName switch
+                {
+                    MouseButtonName.Left => MouseButton.Left,
+                    MouseButtonName.Right => MouseButton.Right,
+                    MouseButtonName.Middle => MouseButton.Middle,
+                    _ => MouseButton.Left
+                };
+                InputService.ClickMouseAsync(mouseButton, clicks).Wait();
+                return $"Mouse clicked {clicks} time(s) at ({x}, {y}) with {buttonName} button";
+
+            case MouseActionType.Drag:
+                if (!endX.HasValue || !endY.HasValue)
+                    throw new ArgumentException("endX and endY are required for drag action");
+                InputService.DragMouseAsync(x, y, endX.Value, endY.Value).Wait();
+                return $"Mouse dragged from ({x}, {y}) to ({endX.Value}, {endY.Value})";
+
+            default:
+                throw new ArgumentException($"Unknown action: {action}");
+        }
+    }
+
+    /// <summary>
+    /// Unified tool for window operations
+    /// </summary>
+    [McpServerTool, Description("Perform window operations (close, minimize, maximize, restore). Replaces: close_window.")]
+    public static string InputWindow(
+        [Description("Window handle (HWND)")] long hwnd,
+        [Description("Window action: 'close' (default), 'minimize', 'maximize', or 'restore'")] string action = "close")
+    {
+        var actionType = Enum.TryParse<WindowActionType>(action, true, out var parsed) ? parsed : WindowActionType.Close;
+        var windowHandle = new IntPtr(hwnd);
+
+        switch (actionType)
+        {
+            case WindowActionType.Close:
+                InputService.TerminateWindowProcess(windowHandle);
+                return $"Window {hwnd} closed";
+
+            case WindowActionType.Minimize:
+                InputService.MinimizeWindow(windowHandle);
+                return $"Window {hwnd} minimized";
+
+            case WindowActionType.Maximize:
+                InputService.MaximizeWindow(windowHandle);
+                return $"Window {hwnd} maximized";
+
+            case WindowActionType.Restore:
+                InputService.RestoreWindow(windowHandle);
+                return $"Window {hwnd} restored";
+
+            default:
+                throw new ArgumentException($"Unknown action: {action}");
+        }
+    }
 }

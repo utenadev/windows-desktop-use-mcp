@@ -56,7 +56,7 @@ dotnet build src/WindowsDesktopUse.App/WindowsDesktopUse.App.csproj -c Release
 ### 2. Configure Claude Desktop
 **Option A: Automatic setup**
 ```powershell
-WindowsDesktopUse.App.exe setup
+WindowsDesktopUse.exe setup
 ```
 
 **Option B: Manual setup**
@@ -65,7 +65,7 @@ Add this to your `%AppData%\Roaming\Claude\claude_desktop_config.json`:
 {
   "mcpServers": {
     "windows-desktop-use": {
-      "command": "C:\\path\\to\\WindowsDesktopUse.App.exe",
+      "command": "C:\\path\\to\\WindowsDesktopUse.exe",
       "args": ["--httpPort", "5000"]
     }
   }
@@ -74,7 +74,7 @@ Add this to your `%AppData%\Roaming\Claude\claude_desktop_config.json`:
 
 ### 3. Verify Installation
 ```powershell
-WindowsDesktopUse.App.exe doctor
+WindowsDesktopUse.exe doctor
 ```
 
 ## CLI Commands
@@ -82,25 +82,25 @@ WindowsDesktopUse.App.exe doctor
 ### `doctor` - System Diagnostics
 Check system compatibility and configuration.
 ```powershell
-WindowsDesktopUse.App.exe doctor
-WindowsDesktopUse.App.exe doctor --verbose    # Show detailed information
-WindowsDesktopUse.App.exe doctor --json       # Output in JSON format
+WindowsDesktopUse.exe doctor
+WindowsDesktopUse.exe doctor --verbose    # Show detailed information
+WindowsDesktopUse.exe doctor --json       # Output in JSON format
 ```
 
 ### `setup` - Claude Desktop Configuration
 Automatically configure Claude Desktop integration.
 ```powershell
-WindowsDesktopUse.App.exe setup                              # Use default config path
-WindowsDesktopUse.App.exe setup --config-path "C:\custom\path.json"  # Custom config path
-WindowsDesktopUse.App.exe setup --no-merge                    # Overwrite existing config
-WindowsDesktopUse.App.exe setup --dry-run                    # Show config without writing
+WindowsDesktopUse.exe setup                              # Use default config path
+WindowsDesktopUse.exe setup --config-path "C:\custom\path.json"  # Custom config path
+WindowsDesktopUse.exe setup --no-merge                    # Overwrite existing config
+WindowsDesktopUse.exe setup --dry-run                    # Show config without writing
 ```
 
 ### `whisper` - Whisper AI Models
 Manage Whisper AI models for audio transcription.
 ```powershell
-WindowsDesktopUse.App.exe whisper          # List available models and check installation
-WindowsDesktopUse.App.exe whisper --list   # Show model list only
+WindowsDesktopUse.exe whisper          # List available models and check installation
+WindowsDesktopUse.exe whisper --list   # Show model list only
 ```
 
 ## Available MCP Tools (Summary)

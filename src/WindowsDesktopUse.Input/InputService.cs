@@ -292,6 +292,38 @@ public static class InputService
         }
     }
 
+    [DllImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    private const int SW_MINIMIZE = 6;
+    private const int SW_MAXIMIZE = 3;
+    private const int SW_RESTORE = 9;
+
+    /// <summary>
+    /// Minimize the specified window
+    /// </summary>
+    public static void MinimizeWindow(IntPtr hWnd)
+    {
+        ShowWindow(hWnd, SW_MINIMIZE);
+    }
+
+    /// <summary>
+    /// Maximize the specified window
+    /// </summary>
+    public static void MaximizeWindow(IntPtr hWnd)
+    {
+        ShowWindow(hWnd, SW_MAXIMIZE);
+    }
+
+    /// <summary>
+    /// Restore the specified window
+    /// </summary>
+    public static void RestoreWindow(IntPtr hWnd)
+    {
+        ShowWindow(hWnd, SW_RESTORE);
+    }
+
     /// <summary>
     /// Check if a virtual key is allowed (safe navigation keys only)
     /// </summary>

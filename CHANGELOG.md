@@ -55,6 +55,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **Tool Description Updates**: CRITICAL warnings in tool descriptions to prevent token overflow.
     - **Explicit Discard Steps**: 4-step protocol (extract metadata, analyze, record as text, delete base64).
     - **Token Warning**: Approx 2000+ tokens per image, 95% memory savings by discarding.
+- **Unified Tool Architecture v2.0**: Consolidated fragmented tools into clean, intuitive interfaces.
+    - **`visual_list`**: Unified `list_monitors`, `list_windows`, `list_all` with `type` parameter.
+    - **`visual_capture`**: Unified all capture tools with dynamic quality control (Normal=30, Detailed=70).
+    - **`visual_watch`**: Unified `watch`, `watch_video_v2`, `monitor` with `mode` parameter.
+    - **`visual_stop`**: Single stop command for all session types.
+    - **`input_mouse`**: Unified `mouse_move`, `mouse_click`, `mouse_drag` with `action` parameter.
+    - **`input_window`**: Unified window operations (close, minimize, maximize, restore).
+    - **`SessionManager`**: Centralized session management for all async operations.
+    - **Migration Guide**: Complete documentation for tool transition (MIGRATION_GUIDE_v2.md).
 - **Unit Tests**: Added comprehensive tests for `VisualChangeDetector` and `VideoTargetFinder` components.
 - **E2E Tests**: Added `VideoCaptureE2ETests` for video pipeline integration testing.
 - **Improved E2E Test Infrastructure**: 

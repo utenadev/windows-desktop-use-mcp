@@ -656,6 +656,10 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
     DesktopUseTools.SetWhisperService(whisperService);
     DesktopUseTools.SetVideoCaptureService(videoCaptureService);
     DesktopUseTools.SetAccessibilityService(accessibilityService);
+    
+    // Initialize unified session manager
+    var sessionManager = new SessionManager();
+    DesktopUseTools.SetSessionManager(sessionManager);
 
     if (testWhisper)
     {

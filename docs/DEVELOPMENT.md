@@ -54,7 +54,7 @@ graph TD
 dotnet build WindowsDesktopUse.sln -c Release
 
 # Executable (EXE) Location:
-# src/WindowsDesktopUse.App/bin/Release/net8.0-windows/win-x64/WindowsDesktopUse.App.exe
+# src/WindowsDesktopUse.App/bin/Release/net8.0-windows/win-x64/WindowsDesktopUse.exe
 ```
 
 ---
