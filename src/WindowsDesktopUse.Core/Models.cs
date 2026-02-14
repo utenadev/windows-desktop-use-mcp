@@ -339,3 +339,43 @@ public class MonitorSession : IDisposable
         }
     }
 }
+
+/// <summary>
+/// Video co-view payload for synchronized video/audio capture
+/// </summary>
+public record VideoCoViewPayload(
+    string SessionId,
+    double Ts,
+    string Frame,
+    string? Transcript,
+    string WindowTitle
+);
+
+/// <summary>
+/// Video co-view session configuration
+/// </summary>
+public class VideoCoViewSession : IDisposable
+{
+    public string Id { get; set; } = "";
+    public long Hwnd { get; set; }
+    public int IntervalMs { get; set; } = 2000;
+    public int Quality { get; set; } = 60;
+    public int MaxWidth { get; set; } = 640;
+    public string ModelSize { get; set; } = "base";
+    public string Language { get; set; } = "";
+    public DateTime StartTime { get; set; } = DateTime.UtcNow;
+    public CancellationTokenSource Cts { get; set; } = new();
+    private bool _disposed;
+
+    public double GetTs() => (DateTime.UtcNow - StartTime).TotalSeconds;
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            Cts.Cancel();
+            Cts.Dispose();
+            _disposed = true;
+        }
+    }
+}

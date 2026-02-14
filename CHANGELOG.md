@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **StreamSession Enhancement**: Added `StartTime` and `RelativeTime` property for time-based coordination.
     - **Whisper OS Language Detection**: Auto-detects OS language for transcription using `CultureInfo.CurrentCulture`.
     - **Combined Capture**: Integrates video capture with audio transcription in a single session.
+- **`watch_video_v2` Tool (Video Co-view Sync)**: Synchronized video/audio capture for co-viewing experience.
+    - **Synchronized Timeline**: Common `ts` (RelativeTime) for video frames and audio transcription.
+    - **Interval-based Capture**: Default 2000ms intervals for video + audio batch processing.
+    - **Base64 Normalization**: Removes newlines and spaces from base64 image data.
+    - **Parallel Processing**: Audio recording and video capture run in parallel without blocking.
+    - **MCP Notifications**: Sends `video_coview` type with `ts`, `frame`, `transcript`, and `windowTitle`.
 - **`read_window_text` Tool**: UI Automation-based structured text extraction from windows.
     - **Markdown Output**: Converts UI tree to Markdown format with headers, lists, and text.
     - **Control Type Mapping**: TitleBar/Header -> `#`, ListItem -> `-`, Text/Edit -> plain text.

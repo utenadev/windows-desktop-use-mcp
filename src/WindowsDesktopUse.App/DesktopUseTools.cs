@@ -1215,4 +1215,193 @@ public static class DesktopUseTools
 
         return $"Session not found: {sessionId}";
     }
+
+    // ============ VIDEO CO-VIEW SYNC (v2) ============
+
+    private static readonly Dictionary<string, VideoCoViewSession> _coviewSessions = new();
+
+    /// <summary>
+    /// Start synchronized video/audio capture for co-viewing experience
+    /// </summary>
+    [McpServerTool, Description("Start synchronized video and audio capture for co-viewing. Captures frames and transcribes audio with synchronized timestamps.")]
+    public static async Task<string> WatchVideoV2(
+        McpServer server,
+        [Description("X coordinate of capture region")] int x,
+        [Description("Y coordinate of capture region")] int y,
+        [Description("Width of capture region")] int w,
+        [Description("Height of capture region")] int h,
+        [Description("Capture interval in milliseconds (default 2000)")] int intervalMs = 2000,
+        [Description("JPEG quality (1-100), default 60")] int quality = 60,
+        [Description("Maximum width for resizing, default 640")] int maxWidth = 640,
+        [Description("Whisper model size (tiny/base/small), default base")] string modelSize = "base",
+        [Description("Language code for transcription (empty for auto-detect)")] string? language = null)
+    {
+        if (_capture == null)
+            throw new InvalidOperationException("ScreenCaptureService not initialized");
+        if (_audioCapture == null)
+            throw new InvalidOperationException("AudioCaptureService not initialized");
+        if (_whisperService == null)
+            throw new InvalidOperationException("WhisperTranscriptionService not initialized");
+
+        if (w <= 0 || h <= 0)
+            throw new ArgumentException("Width and height must be positive");
+        if (intervalMs < 500)
+            throw new ArgumentException("Interval must be at least 500ms");
+
+        var sessionId = Guid.NewGuid().ToString();
+        var startTime = DateTime.UtcNow;
+
+        Console.Error.WriteLine($"[WatchVideoV2] Starting session: {sessionId}");
+        Console.Error.WriteLine($"[WatchVideoV2] Region: ({x}, {y}) {w}x{h}, Interval: {intervalMs}ms");
+
+        var session = new VideoCoViewSession
+        {
+            Id = sessionId,
+            Hwnd = 0,
+            IntervalMs = intervalMs,
+            Quality = quality,
+            MaxWidth = maxWidth,
+            ModelSize = modelSize,
+            Language = language ?? WhisperTranscriptionService.GetDefaultLanguage(),
+            StartTime = startTime
+        };
+
+        lock (_coviewSessions)
+        {
+            _coviewSessions[sessionId] = session;
+        }
+
+        // Start the capture loop
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (!session.Cts.IsCancellationRequested)
+                {
+                    var captureStartTime = DateTime.UtcNow;
+                    var ts = (captureStartTime - startTime).TotalSeconds;
+
+                    try
+                    {
+                        // Start audio capture for this interval
+                        var audioSession = _audioCapture.StartCapture(AudioCaptureSource.System);
+                        Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Audio capture started");
+
+                        // Capture video frame
+                        var frameBase64 = ScreenCaptureService.CaptureRegion(x, y, w, h, maxWidth, quality);
+                        
+                        // Normalize base64 (remove newlines and spaces)
+                        frameBase64 = frameBase64.Replace("\n", "").Replace("\r", "").Replace(" ", "");
+
+                        Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Frame captured ({frameBase64.Length} chars)");
+
+                        // Wait for the rest of the interval
+                        var elapsed = (int)(DateTime.UtcNow - captureStartTime).TotalMilliseconds;
+                        var remainingWait = intervalMs - elapsed;
+                        
+                        if (remainingWait > 0)
+                        {
+                            await Task.Delay(remainingWait, session.Cts.Token).ConfigureAwait(false);
+                        }
+
+                        // Stop audio capture
+                        var audioResult = await _audioCapture.StopCaptureAsync(audioSession.SessionId, false).ConfigureAwait(false);
+                        Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Audio capture stopped");
+
+                        // Transcribe audio in background (don't block next capture)
+                        var transcriptionTask = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                if (!string.IsNullOrEmpty(audioResult.OutputPath) && File.Exists(audioResult.OutputPath))
+                                {
+                                    var parsedModel = Enum.TryParse<WhisperModelSize>(session.ModelSize, true, out var m) ? m : WhisperModelSize.Base;
+                                    var transcript = await _whisperService.TranscribeFileAsync(
+                                        audioResult.OutputPath,
+                                        language: session.Language,
+                                        modelSize: parsedModel,
+                                        ct: session.Cts.Token
+                                    ).ConfigureAwait(false);
+
+                                    var text = string.Join(" ", transcript.Segments.Select(s => s.Text.Trim()));
+                                    Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Transcription: {text}");
+
+                                    // Clean up temp audio file
+                                    try { File.Delete(audioResult.OutputPath); } catch { }
+
+                                    return text;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Transcription error: {ex.Message}");
+                            }
+                            return null;
+                        }, session.Cts.Token);
+
+                        // Wait for transcription (with timeout)
+                        var transcriptionResult = await transcriptionTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+                        // Send notification
+                        var notificationData = new Dictionary<string, object?>
+                        {
+                            ["level"] = "info",
+                            ["data"] = new Dictionary<string, object>
+                            {
+                                ["type"] = "video_coview",
+                                ["sessionId"] = sessionId,
+                                ["ts"] = Math.Round(ts, 1),
+                                ["frame"] = frameBase64,
+                                ["transcript"] = transcriptionResult ?? "",
+                                ["windowTitle"] = $"Region ({x}, {y}) {w}x{h}"
+                            }
+                        };
+
+                        await server.SendNotificationAsync("notifications/message", notificationData).ConfigureAwait(false);
+                        Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Notification sent");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Error: {ex.Message}");
+                    }
+                }
+            }
+            finally
+            {
+                Console.Error.WriteLine($"[WatchVideoV2] Session ended: {sessionId}");
+                lock (_coviewSessions)
+                {
+                    _coviewSessions.Remove(sessionId);
+                }
+            }
+        }, session.Cts.Token);
+
+        return sessionId;
+    }
+
+    /// <summary>
+    /// Stop video co-view session
+    /// </summary>
+    [McpServerTool, Description("Stop video co-view capture session")]
+    public static string StopWatchVideoV2(
+        [Description("The session ID returned by watch_video_v2")] string sessionId)
+    {
+        lock (_coviewSessions)
+        {
+            if (_coviewSessions.TryGetValue(sessionId, out var session))
+            {
+                session.Cts.Cancel();
+                session.Dispose();
+                _coviewSessions.Remove(sessionId);
+                Console.Error.WriteLine($"[WatchVideoV2] Stopped: {sessionId}");
+                return $"Stopped video co-view session {sessionId}";
+            }
+        }
+
+        return $"Session not found: {sessionId}";
+    }
 }
