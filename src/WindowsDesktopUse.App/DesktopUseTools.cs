@@ -1274,18 +1274,36 @@ public static class DesktopUseTools
         // Start the capture loop
         _ = Task.Run(async () =>
         {
+            // 絶対時刻スケジュール: 次のキャプチャ予定時刻を管理
+            var nextCaptureTime = startTime;
+
             try
             {
                 while (!session.Cts.IsCancellationRequested)
                 {
-                    var captureStartTime = DateTime.UtcNow;
-                    var ts = (captureStartTime - startTime).TotalSeconds;
+                    // 次のキャプチャ時刻まで待機（絶対時刻ベース）
+                    var waitMs = (int)(nextCaptureTime - DateTime.UtcNow).TotalMilliseconds;
+                    if (waitMs > 0)
+                    {
+                        try
+                        {
+                            await Task.Delay(waitMs, session.Cts.Token).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                    }
+                    else if (waitMs < -500)
+                    {
+                        // 大幅な遅延を警告
+                        Console.Error.WriteLine($"[WatchVideoV2] Warning: Capture delayed by {-waitMs}ms");
+                    }
 
                     try
                     {
                         // Start audio capture for this interval
                         var audioSession = _audioCapture.StartCapture(AudioCaptureSource.System);
-                        Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Audio capture started");
 
                         // Capture video frame
                         var frameBase64 = ScreenCaptureService.CaptureRegion(x, y, w, h, maxWidth, quality);
@@ -1293,16 +1311,11 @@ public static class DesktopUseTools
                         // Normalize base64 (remove newlines and spaces)
                         frameBase64 = frameBase64.Replace("\n", "").Replace("\r", "").Replace(" ", "");
 
-                        Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Frame captured ({frameBase64.Length} chars)");
+                        // 実測タイムスタンプ: キャプチャ処理完了直後の時刻を使用
+                        var captureCompletedTime = DateTime.UtcNow;
+                        var ts = (captureCompletedTime - startTime).TotalSeconds;
 
-                        // Wait for the rest of the interval
-                        var elapsed = (int)(DateTime.UtcNow - captureStartTime).TotalMilliseconds;
-                        var remainingWait = intervalMs - elapsed;
-                        
-                        if (remainingWait > 0)
-                        {
-                            await Task.Delay(remainingWait, session.Cts.Token).ConfigureAwait(false);
-                        }
+                        Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Frame captured ({frameBase64.Length} chars)");
 
                         // Stop audio capture
                         var audioResult = await _audioCapture.StopCaptureAsync(audioSession.SessionId, false).ConfigureAwait(false);
@@ -1342,7 +1355,10 @@ public static class DesktopUseTools
                         // Wait for transcription (with timeout)
                         var transcriptionResult = await transcriptionTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
-                        // Send notification
+                        // 次のキャプチャ時刻を更新（厳密な間隔維持）
+                        nextCaptureTime = nextCaptureTime.AddMilliseconds(intervalMs);
+
+                        // Send notification with actual capture timestamp
                         var notificationData = new Dictionary<string, object?>
                         {
                             ["level"] = "info",
@@ -1366,7 +1382,9 @@ public static class DesktopUseTools
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"[WatchVideoV2] ts={ts:F1}s - Error: {ex.Message}");
+                        Console.Error.WriteLine($"[WatchVideoV2] Error: {ex.Message}");
+                        // エラー時も次のキャプチャ時刻を更新
+                        nextCaptureTime = nextCaptureTime.AddMilliseconds(intervalMs);
                     }
                 }
             }

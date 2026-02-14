@@ -135,11 +135,31 @@ public sealed class VideoCaptureService : IDisposable
         var cts = new CancellationTokenSource();
         session.CancellationTokenSource = cts;
 
+        // 絶対時刻スケジュール: 次のキャプチャ予定時刻を管理
+        var nextCaptureTime = session.StartTime;
+
         try
         {
             while (!cts.Token.IsCancellationRequested && !session.CancellationToken.IsCancellationRequested)
             {
-                var startTime = DateTime.UtcNow;
+                // 次のキャプチャ時刻まで待機（絶対時刻ベース）
+                var waitMs = (int)(nextCaptureTime - DateTime.UtcNow).TotalMilliseconds;
+                if (waitMs > 0)
+                {
+                    try
+                    {
+                        await Task.Delay(waitMs, cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+                else if (waitMs < -500)
+                {
+                    // 大幅な遅延を警告
+                    Console.Error.WriteLine($"[VideoCapture] Warning: Capture delayed by {-waitMs}ms");
+                }
 
                 try
                 {
@@ -165,8 +185,8 @@ public sealed class VideoCaptureService : IDisposable
                         analysis = detector.AnalyzeFrame(frame);
                         if (!analysis.ShouldSend)
                         {
-                            // Skip this frame
-                            await Task.Delay(session.FrameIntervalMs, cts.Token);
+                            // Skip this frame but still schedule next capture
+                            nextCaptureTime = nextCaptureTime.AddMilliseconds(session.FrameIntervalMs);
                             continue;
                         }
                     }
@@ -175,10 +195,15 @@ public sealed class VideoCaptureService : IDisposable
                     var imageData = await Task.Run(() => 
                         EncodeToJpeg(frame, session.Quality));
 
-                    // Create payload
+                    // 実測タイムスタンプ: キャプチャ処理完了直後の時刻を使用
+                    var captureCompletedTime = DateTime.UtcNow;
+                    var ts = (captureCompletedTime - session.StartTime).TotalSeconds;
+
+                    // Create payload with actual capture timestamp
                     var payload = CreateVideoPayload(
                         session, 
                         imageData, 
+                        ts,
                         analysis?.EventTag ?? "Frame");
 
                     session.LatestPayload = payload;
@@ -188,6 +213,9 @@ public sealed class VideoCaptureService : IDisposable
                     {
                         await session.OnFrameCaptured(payload);
                     }
+
+                    // 次のキャプチャ時刻を更新（厳密な間隔維持）
+                    nextCaptureTime = nextCaptureTime.AddMilliseconds(session.FrameIntervalMs);
                 }
                 catch (OperationCanceledException)
                 {
@@ -196,21 +224,8 @@ public sealed class VideoCaptureService : IDisposable
                 catch (Exception ex)
                 {
                     Console.Error.WriteLine($"[VideoCapture] Capture error: {ex.Message}");
-                }
-
-                // Maintain FPS
-                var elapsed = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
-                var delay = session.FrameIntervalMs - elapsed;
-                if (delay > 0)
-                {
-                    try
-                    {
-                        await Task.Delay(delay, cts.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
+                    // エラー時も次のキャプチャ時刻を更新
+                    nextCaptureTime = nextCaptureTime.AddMilliseconds(session.FrameIntervalMs);
                 }
             }
         }
@@ -322,14 +337,13 @@ public sealed class VideoCaptureService : IDisposable
         return Convert.ToBase64String(ms.ToArray());
     }
 
-    private VideoPayload CreateVideoPayload(VideoSession session, string imageData, string eventTag)
+    private VideoPayload CreateVideoPayload(VideoSession session, string imageData, double ts, string eventTag)
     {
         var now = DateTime.UtcNow;
         var target = session.TargetInfo;
-        var relativeTime = session.GetRelativeTime();
 
         return new VideoPayload(
-            Timestamp: relativeTime.ToString(@"hh\:mm\:ss\.f"),
+            Timestamp: TimeSpan.FromSeconds(ts).ToString(@"hh\:mm\:ss\.f"),
             SystemTime: now.ToString("O"),
             WindowInfo: new VideoWindowInfo(
                 Title: target.WindowTitle,

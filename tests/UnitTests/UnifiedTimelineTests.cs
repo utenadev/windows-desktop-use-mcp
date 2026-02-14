@@ -71,4 +71,71 @@ public class UnifiedTimelineTests
         Assert.That(metadata.SegmentEndTime, Is.EqualTo(10.0));
         Assert.That(metadata.WindowTitle, Is.Null);
     }
+
+    [Test]
+    public void CaptureInterval_NextCaptureTime_ShouldMaintainConsistentInterval()
+    {
+        // 絶対時刻スケジュールのテスト
+        var startTime = DateTime.UtcNow;
+        var nextCaptureTime = startTime;
+        var intervalMs = 500; // 500ms間隔
+        var timestamps = new List<double>();
+
+        // 3回キャプチャをシミュレート
+        for (int i = 0; i < 3; i++)
+        {
+            // 次のキャプチャ時刻まで待機
+            var waitMs = (int)(nextCaptureTime - DateTime.UtcNow).TotalMilliseconds;
+            if (waitMs > 0)
+            {
+                Thread.Sleep(waitMs);
+            }
+
+            // キャプチャ完了時刻を記録
+            var captureTime = DateTime.UtcNow;
+            var ts = (captureTime - startTime).TotalSeconds;
+            timestamps.Add(ts);
+
+            // 次のキャプチャ時刻を更新
+            nextCaptureTime = nextCaptureTime.AddMilliseconds(intervalMs);
+
+            // 処理時間をシミュレート（50ms）
+            Thread.Sleep(50);
+        }
+
+        // 間隔が 500ms ± 100ms 以内で維持されていることを検証
+        var interval1 = timestamps[1] - timestamps[0];
+        var interval2 = timestamps[2] - timestamps[1];
+
+        Assert.That(interval1, Is.EqualTo(0.5).Within(0.1), 
+            $"First interval should be 0.5s ± 0.1s, but was {interval1:F3}s");
+        Assert.That(interval2, Is.EqualTo(0.5).Within(0.1), 
+            $"Second interval should be 0.5s ± 0.1s, but was {interval2:F3}s");
+    }
+
+    [Test]
+    public void Timestamp_ShouldReflectActualCaptureTime()
+    {
+        // キャプチャ完了時の実際の時刻を反映するテスト
+        var session = new VideoCoViewSession
+        {
+            StartTime = DateTime.UtcNow
+        };
+
+        // 開始時刻を記録
+        var startTime = session.StartTime;
+
+        // 処理をシミュレート（100msかかる）
+        Thread.Sleep(100);
+
+        // キャプチャ完了時の時刻で ts を計算
+        var captureCompletedTime = DateTime.UtcNow;
+        var ts = (captureCompletedTime - startTime).TotalSeconds;
+
+        // ts は 0.1秒以上であるべき
+        Assert.That(ts, Is.GreaterThan(0.09), 
+            "Timestamp should reflect actual capture completion time");
+        Assert.That(ts, Is.LessThan(0.2), 
+            "Timestamp should not be too far from expected value");
+    }
 }

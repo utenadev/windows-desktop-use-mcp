@@ -45,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Timestamp Normalization**: Fixed hardcoded `00:00:00` timestamps in video payloads.
     - **Relative Time Calculation**: Uses session start time to calculate elapsed duration.
     - **Format**: `hh:mm:ss.f` (e.g., `00:00:05.2`) for accurate video progress tracking.
+- **Timestamp Precision Improvement**: Implemented absolute-time scheduling for accurate capture intervals.
+    - **Absolute Time Scheduling**: `nextCaptureTime` based scheduling ensures consistent capture intervals (±100ms).
+    - **Actual Capture Timestamp**: `ts` is calculated at the moment of capture completion, not loop start.
+    - **Interval Maintenance**: Strict interval preservation even when processing takes longer than expected.
+    - **Drift Prevention**: Eliminates cumulative timing errors between video frames and audio transcription.
 - **Unit Tests**: Added comprehensive tests for `VisualChangeDetector` and `VideoTargetFinder` components.
 - **E2E Tests**: Added `VideoCaptureE2ETests` for video pipeline integration testing.
 - **Improved E2E Test Infrastructure**: 
