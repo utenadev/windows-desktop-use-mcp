@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Globalization;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -18,12 +19,14 @@ public class DesktopUseTools
     private static AudioCaptureService? _audioCapture;
     private static WhisperTranscriptionService? _whisperService;
     private static VideoCaptureService? _videoCapture;
+    private static WindowsDesktopUse.Screen.HybridCaptureService? _hybridCapture;
     private static AccessibilityService? _accessibilityService;
 
     public static void SetCaptureService(ScreenCaptureService capture) => _capture = capture;
     public static void SetAudioCaptureService(AudioCaptureService audioCapture) => _audioCapture = audioCapture;
     public static void SetWhisperService(WhisperTranscriptionService whisperService) => _whisperService = whisperService;
     public static void SetVideoCaptureService(VideoCaptureService videoCapture) => _videoCapture = videoCapture;
+    public static void SetHybridCaptureService(WindowsDesktopUse.Screen.HybridCaptureService hybridCapture) => _hybridCapture = hybridCapture;
     public static void SetAccessibilityService(AccessibilityService accessibilityService) => _accessibilityService = accessibilityService;
 
     // Enum for capture target types
@@ -1665,7 +1668,26 @@ public class DesktopUseTools
                                 Console.Error.WriteLine($"[VisualWatch] Invalid HWND format: '{hwnd}'");
                                 continue;
                             }
-                            imageData = ScreenCaptureService.CaptureWindow(hwndValue, 640, quality);
+                            // Use HybridCaptureService for GPU-accelerated capture
+                            if (_hybridCapture != null)
+                            {
+                                var bitmap = await _hybridCapture.CaptureWindowAsync(new IntPtr(hwndValue));
+                                if (bitmap == null)
+                                {
+                                    Console.Error.WriteLine($"[VisualWatch] Failed to capture window: {hwnd}");
+                                    continue;
+                                }
+                                using (bitmap)
+                                using (var ms = new MemoryStream())
+                                {
+                                    bitmap.Save(ms, ImageFormat.Jpeg);
+                                    imageData = Convert.ToBase64String(ms.ToArray());
+                                }
+                            }
+                            else
+                            {
+                                imageData = ScreenCaptureService.CaptureWindow(hwndValue, 640, quality);
+                            }
                             break;
                         case "region":
                             imageData = ScreenCaptureService.CaptureRegion(x, y, w, h, 640, quality);
@@ -1678,6 +1700,7 @@ public class DesktopUseTools
 
                     var captureTime = DateTime.UtcNow;
                     var ts = (captureTime - session.StartTime).TotalSeconds;
+                    var timestamp = captureTime.ToLocalTime().ToString("HH:mm:ss.f");
                     nextCaptureTime = nextCaptureTime.AddMilliseconds(intervalMs);
 
                     var notificationData = new Dictionary<string, object?>
@@ -1689,15 +1712,19 @@ public class DesktopUseTools
                             ["sessionId"] = sessionId,
                             ["mode"] = mode,
                             ["ts"] = Math.Round(ts, 1),
+                            ["timestamp"] = timestamp,
                             ["image"] = imageData,
                             ["_llm_instruction"] = new Dictionary<string, object>
                             {
                                 ["action"] = "PROCESS_IMMEDIATELY_AND_DISCARD",
+                                ["logging_policy"] = "NO_SCREEN_OUTPUT",
                                 ["steps"] = new[]
                                 {
                                     "1. Extract visual information from the image.",
                                     "2. Record findings as TEXT only.",
-                                    "3. DELETE the 'image' field from your context immediately."
+                                    "3. DELETE the 'image' field from your context immediately.",
+                                    "4. DO NOT print or log the entire JSON payload to the screen/console.",
+                                    "5. Discard the base64 image data immediately after analysis."
                                 },
                                 ["token_warning"] = $"This image consumes approx {imageData.Length / 3}+ tokens. Discarding saves 95% memory."
                             }

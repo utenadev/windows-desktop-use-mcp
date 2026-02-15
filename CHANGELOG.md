@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **MCP Server Registration**: Added `[McpServerToolType]` attribute to `DesktopUseTools` class.
     - **JSON-RPC Compatibility**: All `hwnd` parameters now accept `string` type for better JSON-RPC compatibility.
 
+### Fixed
+- **visual_watch GPU Capture**: Updated to use `HybridCaptureService` for GPU-accelerated window capture (YouTube, Netflix, etc.).
+- **Timestamp Format**: Added `timestamp` field (hh:mm:ss.f format) alongside `ts` field.
+- **LLM Instruction Enhancement**: Added `logging_policy: "NO_SCREEN_OUTPUT"` to prevent JSON payload logging.
+
 ### Changed
 - **Architecture**: Converted `DesktopUseTools` from static class to instance class for proper MCP SDK integration.
 - **E2E Tests**: Comprehensive test suite updates for v2.0 tools.

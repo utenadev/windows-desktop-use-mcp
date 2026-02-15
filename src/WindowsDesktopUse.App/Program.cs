@@ -637,6 +637,12 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
         service.InitializeMonitors();
         return service;
     });
+    services.AddSingleton<WindowsDesktopUse.Screen.HybridCaptureService>(provider =>
+    {
+        var screenCapture = new ScreenCaptureService(desktop);
+        screenCapture.InitializeMonitors();
+        return new WindowsDesktopUse.Screen.HybridCaptureService(screenCapture, WindowsDesktopUse.Screen.CaptureApiPreference.Auto);
+    });
     services.AddSingleton<AudioCaptureService>();
     services.AddSingleton<WhisperTranscriptionService>();
     services.AddSingleton<VideoCaptureService>();
@@ -646,12 +652,14 @@ rootCmd.SetHandler(async (desktop, httpPort, testWhisper) =>
 
     // Initialize static tools with services
     var captureService = serviceProvider.GetRequiredService<ScreenCaptureService>();
+    var hybridCaptureService = serviceProvider.GetRequiredService<WindowsDesktopUse.Screen.HybridCaptureService>();
     var audioCaptureService = serviceProvider.GetRequiredService<AudioCaptureService>();
     var whisperService = serviceProvider.GetRequiredService<WhisperTranscriptionService>();
     var videoCaptureService = serviceProvider.GetRequiredService<VideoCaptureService>();
     var accessibilityService = serviceProvider.GetRequiredService<AccessibilityService>();
 
     DesktopUseTools.SetCaptureService(captureService);
+    DesktopUseTools.SetHybridCaptureService(hybridCaptureService);
     DesktopUseTools.SetAudioCaptureService(audioCaptureService);
     DesktopUseTools.SetWhisperService(whisperService);
     DesktopUseTools.SetVideoCaptureService(videoCaptureService);
