@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **visual_watch GPU Capture**: Updated to use `HybridCaptureService` for GPU-accelerated window capture (YouTube, Netflix, etc.).
 - **Timestamp Format**: Added `timestamp` field (hh:mm:ss.f format) alongside `ts` field.
 - **LLM Instruction Enhancement**: Added `logging_policy: "NO_SCREEN_OUTPUT"` to prevent JSON payload logging.
+- **AI Coordination Protocol**: 
+    - Moved `_llm_instruction` to first position in all JSON responses for guaranteed instruction visibility.
+    - Updated action to `CRITICAL_PROCESS_IMMEDIATELY_AND_DISCARD` for stronger enforcement.
+    - Added `LoggingPolicy` field to `LlmInstruction` record.
 
 ### Changed
 - **Architecture**: Converted `DesktopUseTools` from static class to instance class for proper MCP SDK integration.
