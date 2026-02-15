@@ -5,6 +5,35 @@ All notable changes to windows-desktop-use-mcp will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-02-15
+
+### Added
+- **v2.0 Final Release**: Completed cleanup and stabilization for production release.
+    - **9 Unified MCP Tools**: All tools now properly registered with `[McpServerTool]` attribute.
+        - `visual_list`: List monitors or windows
+        - `visual_capture`: Capture screenshots with dynamic quality
+        - `visual_watch`: Start watching visual content (video/monitor/unified modes)
+        - `visual_stop`: Stop any active session
+        - `input_mouse`: Mouse operations (move, click, drag)
+        - `input_window`: Window operations (close, minimize, maximize, restore)
+        - `keyboard_key`: Keyboard input
+        - `read_window_text`: Extract text from windows via UI Automation
+        - `listen`: Start audio capture
+    - **MCP Server Registration**: Added `[McpServerToolType]` attribute to `DesktopUseTools` class.
+    - **JSON-RPC Compatibility**: All `hwnd` parameters now accept `string` type for better JSON-RPC compatibility.
+
+### Changed
+- **Architecture**: Converted `DesktopUseTools` from static class to instance class for proper MCP SDK integration.
+- **E2E Tests**: Comprehensive test suite updates for v2.0 tools.
+    - Updated all test methods to use new unified tool names.
+    - Fixed response format handling (e.g., `visual_list` returns `{ items: [...] }`).
+    - Adjusted test assertions to match current tool behavior.
+    - **All 21 E2E tests now passing** (1 skipped on CI).
+
+### Fixed
+- **MCP Tool Discovery**: Fixed issue where MCP server could not discover tools due to missing `[McpServerToolType]` attribute.
+- **Parameter Types**: Standardized `hwnd` parameters to `string` type with internal `long.TryParse` validation.
+
 ## [Unreleased]
 
 ### Added
