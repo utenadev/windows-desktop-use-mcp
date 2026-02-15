@@ -843,6 +843,12 @@ public class DesktopUseTools
 
         return new Dictionary<string, object?>
         {
+            ["_llm_instruction"] = new Dictionary<string, object>
+            {
+                ["action"] = LlmInstructions.ProcessAndDiscardImage.Action,
+                ["steps"] = LlmInstructions.ProcessAndDiscardImage.Steps,
+                ["token_warning"] = LlmInstructions.ProcessAndDiscardImage.TokenWarning
+            },
             ["sessionId"] = sessionId,
             ["hasFrame"] = true,
             ["timestamp"] = payload.Timestamp,
@@ -852,13 +858,7 @@ public class DesktopUseTools
             ["hasChange"] = payload.VisualMetadata.HasChange,
             ["eventTag"] = payload.VisualMetadata.EventTag,
             ["image"] = payload.ImageData,
-            ["ocrText"] = payload.OcrText,
-            ["_llm_instruction"] = new Dictionary<string, object>
-            {
-                ["action"] = LlmInstructions.ProcessAndDiscardImage.Action,
-                ["steps"] = LlmInstructions.ProcessAndDiscardImage.Steps,
-                ["token_warning"] = LlmInstructions.ProcessAndDiscardImage.TokenWarning
-            }
+            ["ocrText"] = payload.OcrText
         };
     }
 
@@ -1378,18 +1378,18 @@ public class DesktopUseTools
                             ["level"] = "info",
                             ["data"] = new Dictionary<string, object>
                             {
-                                ["type"] = "video_coview",
-                                ["sessionId"] = sessionId,
-                                ["ts"] = Math.Round(ts, 1),
-                                ["frame"] = frameBase64,
-                                ["transcript"] = transcriptionResult ?? "",
-                                ["windowTitle"] = $"Region ({x}, {y}) {w}x{h}",
                                 ["_llm_instruction"] = new Dictionary<string, object>
                                 {
                                     ["action"] = LlmInstructions.ProcessAndDiscardImage.Action,
                                     ["steps"] = LlmInstructions.ProcessAndDiscardImage.Steps,
                                     ["token_warning"] = LlmInstructions.ProcessAndDiscardImage.TokenWarning
-                                }
+                                },
+                                ["type"] = "video_coview",
+                                ["sessionId"] = sessionId,
+                                ["ts"] = Math.Round(ts, 1),
+                                ["frame"] = frameBase64,
+                                ["transcript"] = transcriptionResult ?? "",
+                                ["windowTitle"] = $"Region ({x}, {y}) {w}x{h}"
                             }
                         };
 
@@ -1582,21 +1582,16 @@ public class DesktopUseTools
 
         return new
         {
+            _llm_instruction = new
+            {
+                action = LlmInstructions.ProcessAndDiscardImage.Action,
+                steps = LlmInstructions.ProcessAndDiscardImage.Steps,
+                token_warning = $"This image consumes approx {imageData.Length / 3}+ tokens. Discarding saves 95% memory."
+            },
             target,
             mode = captureMode.ToString().ToLowerInvariant(),
             quality,
-            image = imageData,
-            _llm_instruction = new
-            {
-                action = "PROCESS_IMMEDIATELY_AND_DISCARD",
-                steps = new[]
-                {
-                    "1. Extract visual information from the image.",
-                    "2. Record findings as TEXT only.",
-                    "3. DELETE the 'image' field from your context immediately."
-                },
-                token_warning = $"This image consumes approx {imageData.Length / 3}+ tokens. Discarding saves 95% memory."
-            }
+            image = imageData
         };
     }
 
@@ -1708,26 +1703,19 @@ public class DesktopUseTools
                         ["level"] = "info",
                         ["data"] = new Dictionary<string, object>
                         {
+                            ["_llm_instruction"] = new Dictionary<string, object>
+                            {
+                                ["action"] = LlmInstructions.ProcessAndDiscardImage.Action,
+                                ["logging_policy"] = LlmInstructions.ProcessAndDiscardImage.LoggingPolicy,
+                                ["steps"] = LlmInstructions.ProcessAndDiscardImage.Steps,
+                                ["token_warning"] = $"This image consumes approx {imageData.Length / 3}+ tokens. Discarding saves 95% memory."
+                            },
                             ["type"] = "visual_watch",
                             ["sessionId"] = sessionId,
                             ["mode"] = mode,
                             ["ts"] = Math.Round(ts, 1),
                             ["timestamp"] = timestamp,
-                            ["image"] = imageData,
-                            ["_llm_instruction"] = new Dictionary<string, object>
-                            {
-                                ["action"] = "PROCESS_IMMEDIATELY_AND_DISCARD",
-                                ["logging_policy"] = "NO_SCREEN_OUTPUT",
-                                ["steps"] = new[]
-                                {
-                                    "1. Extract visual information from the image.",
-                                    "2. Record findings as TEXT only.",
-                                    "3. DELETE the 'image' field from your context immediately.",
-                                    "4. DO NOT print or log the entire JSON payload to the screen/console.",
-                                    "5. Discard the base64 image data immediately after analysis."
-                                },
-                                ["token_warning"] = $"This image consumes approx {imageData.Length / 3}+ tokens. Discarding saves 95% memory."
-                            }
+                            ["image"] = imageData
                         }
                     };
 

@@ -7,136 +7,61 @@ AI に Windows の「目（視覚）」「耳（聴覚）」「手足（操作�
 
 ## 主な機能
 
-- **視覚 (Screen Capture)**: モニター、特定のウィンドウ、または任意領域のキャプチャ。
+- **視覚 (Screen Capture)**: モニター、特定のウィンドウ、または任意領域のキャプチャ。GPUアクセラレーション対応。
 - **聴覚 (Audio & Transcription)**: システム音やマイクの録音、および Whisper AI による高品質なローカル文字起こし。
-- **手足 (Desktop Input)**: マウス移動、クリック、ドラッグ、安全なナビゲーションキー操作（セキュリティ制限付き）。
-- **ライブ監視 (Streaming)**: 画面の変更をリアルタイムで監視し、HTTP ストリーミングでブラウザから確認可能。
+- **手足 (Desktop Input)**: マウス移動、クリック、ドラッグ、安全なナビゲーションキー操作。
+- **補助 (Utility)**: UI Automation によるウィンドウテキストの構造化抽出 (Markdown)。
 
 ## クイックスタート
 
-### 非開発者向け（ビルド済み実行ファイル）
+### ビルド済み実行ファイル（推奨）
 
-開発環境がない場合、[Releases](../../releases) からビルド済みの実行ファイルを利用できます。
-
-#### 1. ダウンロード
-1. [Releases ページ](../../releases) にアクセス
-2. 最新の `WindowsDesktopUse.zip` をダウンロード
-3. 好きな場所に展開（例：`C:\Tools\WindowsDesktopUse`）
-
-#### 2. Claude Desktop の設定
-**方法 A：自動セットアップ**
-```powershell
-cd C:\Tools\WindowsDesktopUse
-WindowsDesktopUse.exe setup
-```
-
-**方法 B：手動設定**
-`%AppData%\Roaming\Claude\claude_desktop_config.json` に以下を追加します：
-```json
-{
-  "mcpServers": {
-    "windows-desktop-use": {
-      "command": "C:\\Tools\\WindowsDesktopUse\\WindowsDesktopUse.exe",
-      "args": ["--httpPort", "5000"]
-    }
-  }
-}
-```
-
-#### 3. Claude Desktop を再起動
-Claude Desktop を閉じてから再起動し、新しい MCP サーバーを読み込みます。
-
----
-
-### 開発者向け（ソースコードからビルド）
-
-#### 1. ビルド
-```powershell
-dotnet build src/WindowsDesktopUse.App/WindowsDesktopUse.App.csproj -c Release
-```
-
-#### 2. Claude Desktop の設定
-**方法 A: 自動セットアップ**
-```powershell
-WindowsDesktopUse.exe setup
-```
-
-**方法 B: 手動設定**
-`%AppData%\Roaming\Claude\claude_desktop_config.json` に以下を追加します：
-```json
-{
-  "mcpServers": {
-    "windows-desktop-use": {
-      "command": "C:\\path\\to\\WindowsDesktopUse.exe",
-      "args": ["--httpPort", "5000"]
-    }
-  }
-}
-```
-
-### 3. インストール確認
-```powershell
-WindowsDesktopUse.exe doctor
-```
-
-## CLI コマンド
-
-### `doctor` - システム診断
-システム互換性と設定を確認します。
-```powershell
-WindowsDesktopUse.exe doctor
-WindowsDesktopUse.exe doctor --verbose    # 詳細な情報を表示
-WindowsDesktopUse.exe doctor --json       # JSON 形式で出力
-```
-
-### `setup` - Claude Desktop 設定
-Claude Desktop の統合を自動的に設定します。
-```powershell
-WindowsDesktopUse.exe setup                              # デフォルトの設定パスを使用
-WindowsDesktopUse.exe setup --config-path "C:\custom\path.json"  # カスタム設定パス
-WindowsDesktopUse.exe setup --no-merge                    # 既存の設定を上書き
-WindowsDesktopUse.exe setup --dry-run                    # 設定をファイルに書き込まずに表示
-```
-
-### `whisper` - Whisper AI モデル
-音声文字起こし用の Whisper AI モデルを管理します。
-```powershell
-WindowsDesktopUse.exe whisper          # 利用可能なモデル一覧とインストール状態を確認
-WindowsDesktopUse.exe whisper --list   # モデル一覧のみ表示
-```
+1. [Releases](../../releases) から最新の `WindowsDesktopUse.zip` をダウンロード・展開。
+2. `WindowsDesktopUse.exe setup` を実行して Claude Desktop に自動登録。
+3. Claude Desktop を再起動。
 
 ## 利用可能な MCP ツール
 
 ### 視覚系（Visual）
-- **`visual_list`**: モニター、ウィンドウ、またはすべてを一覧表示。`type` パラメータで切り替え。
-- **`visual_capture`**: モニター、ウィンドウ、領域のキャプチャ。動的Qualité制御付き（Normal=30/Detailed=70）。
-- **`visual_watch`**: 継続的な監視・ストリーミング。`mode` パラメータで video/monitor/unified を切り替え。
-- **`visual_stop`**: すべてのセッションを統合して停止。
-
-### 聴覚系（Audio）
-- **`listen`**: システム音やマイク入力を録音し、Whisper AI でテキストに変換。
+- `visual_list`: モニターやウィンドウの一覧。
+- `visual_capture`: 静止画取得（Normal=30/Detailed=70 画質）。
+- `visual_watch`: 同期ストリーミング。
+- `visual_stop`: 全セッション停止。
 
 ### 操作系（Input）
-- **`input_mouse`**: マウス移動、クリック、ドラッグを `action` パラメータで統合。
-- **`input_window`**: ウィンドウ操作（閉じる、最小化、最大化、復元）を `action` パラメータで統合。
-- **`keyboard_key`**: 安全なナビゲーションキー（Enter, Tab, 矢印キー等）の操作。セキュリティのため、テキスト入力と修飾キー（Ctrl, Alt, Win）はブロックされています。
+- `input_mouse`: 移動、クリック、ドラッグ。
+- `input_window`: 閉じる、最小化、最大化、復元。
+- `keyboard_key`: 安全なナビゲーションキー操作（セキュリティ制限あり）。
 
-### 補助系（Utility）
-- **`read_window_text`**: UI Automation でウィンドウのテキストを Markdown 形式で抽出。
+### 補助・音声（Hearing & Utility）
+- `listen`: 録音と文字起こし。
+- `read_window_text`: ウィンドウ内テキストの Markdown 抽出。
 
-詳細な引数や使用例については、[**ツールガイド**](docs/TOOLS.ja.md) を参照してください。
+---
+
+## 💡 AI への指示のコツ（テスト/デモ）
+
+動画解析など、連続してキャプチャを行う際は、以下の **「3ステップ・プロンプト」** を使用すると、トークンの消費を劇的に抑えつつ正確な分析が可能です。
+
+### 1. メモリ管理ルールの宣言
+> 「WindowsDesktopUse MCP サーバを使用し、_llm_instruction の指示を厳守してください。image は即時破棄すること。」
+
+### 2. バッチデータ収集
+> 「YouTube ウィンドウの動画領域を対象に、2秒おきに 10フレーム取得してください。画像は即座に捨て、テキスト要約のみ記録してください。」
+
+### 3. 総合分析
+> 「収集した 10フレームの要約履歴を元に、動画の内容を解説してください。」
+
+---
 
 ## ドキュメント一覧
-
 - [**ツールリファレンス**](docs/TOOLS.ja.md) - 詳細なコマンド一覧と使用例。
-- [**開発者ガイド**](docs/DEVELOPMENT.ja.md) - ビルド、テスト、アーキテクチャ（DLL構成）の詳細。
-- [**Whisper 音声認識**](docs/WHISPER.ja.md) - 音声認識機能とモデルについて。
+- [**開発者ガイド**](docs/DEVELOPMENT.ja.md) - アーキテクチャとビルド手順。
+- [**画質テスト報告書**](docs/quality_test_report.md) - Quality 30/70 の違いについて。
 
 ## 動作要件
-
-- Windows 11（または Windows 10 1803 以降）
-- .NET 8.0 ランタイム/SDK
-- 高DPI環境対応（物理ピクセル座標系）
+- Windows 11 / 10 1803+
+- .NET 8.0 ランタイム
 
 ## ライセンス
-MIT License. 詳細は [LICENSE](LICENSE) ファイルを参照してください。
+MIT License.

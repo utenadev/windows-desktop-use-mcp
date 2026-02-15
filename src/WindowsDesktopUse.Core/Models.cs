@@ -346,7 +346,8 @@ public class MonitorSession : IDisposable
 public record LlmInstruction(
     string Action,
     string[] Steps,
-    string TokenWarning
+    string TokenWarning,
+    string? LoggingPolicy = null
 );
 
 /// <summary>
@@ -355,15 +356,15 @@ public record LlmInstruction(
 public static class LlmInstructions
 {
     public static readonly LlmInstruction ProcessAndDiscardImage = new(
-        Action: "PROCESS_IMMEDIATELY_AND_DISCARD",
+        Action: "CRITICAL_PROCESS_IMMEDIATELY_AND_DISCARD",
         Steps: new[]
         {
-            "1. Extract metadata (ts, windowTitle).",
-            "2. Analyze image NOW.",
-            "3. Record result as TEXT only.",
-            "4. DELETE the 'frame' or 'image' field from your history."
+            "1. EXTRACT necessary metadata (ts, windowTitle) and visual summary NOW.",
+            "2. DO NOT log or print the raw base64 or the full JSON payload to the console or history.",
+            "3. DISCARD the image data immediately. Memory safety is the top priority."
         },
-        TokenWarning: "This image consumes approx 2000+ tokens. Discarding it saves 95% memory."
+        TokenWarning: "This image consumes approx 2000+ tokens. Discarding it saves 95% memory.",
+        LoggingPolicy: "NO_SCREEN_OUTPUT"
     );
 }
 
