@@ -13,8 +13,19 @@ public class ScreenCaptureService
     private readonly uint _defaultMon;
     private readonly Dictionary<string, StreamSession> _sessions = new();
     private List<MonitorInfo> _monitors = new();
+    private readonly Dictionary<string, DateTime> _streamStartTimes = new();
 
     public Func<string, string, Task>? OnFrameCaptured { get; set; }
+
+    /// <summary>
+    /// When true, overlays timestamp and event tags on captured frames for AI-friendly understanding.
+    /// </summary>
+    public bool EnableOverlay { get; set; } = false;
+
+    /// <summary>
+    /// Optional event tag provider for overlay (e.g., "SCENE CHANGE").
+    /// </summary>
+    public Func<string, string?>? GetEventTag { get; set; }
 
     public ScreenCaptureService(uint defaultMon) => _defaultMon = defaultMon;
 
@@ -30,6 +41,11 @@ public class ScreenCaptureService
 
     public string CaptureSingle(uint idx, int maxW, int quality)
     {
+        return CaptureSingleInternal(idx, maxW, quality, "default");
+    }
+
+    private string CaptureSingleInternal(uint idx, int maxW, int quality, string streamId)
+    {
         if (idx >= _monitors.Count)
             throw new ArgumentOutOfRangeException(nameof(idx), $"Monitor index {idx} is out of range. Available: 0-{_monitors.Count - 1}");
         var mon = _monitors[(int)idx];
@@ -38,6 +54,18 @@ public class ScreenCaptureService
         {
             g.CopyFromScreen(mon.X, mon.Y, 0, 0, new Size(mon.W, mon.H));
         }
+
+        // Apply AI-friendly overlays if enabled
+        if (EnableOverlay)
+        {
+            var startTime = _streamStartTimes.GetValueOrDefault(streamId, DateTime.UtcNow);
+            var elapsed = DateTime.UtcNow - startTime;
+            ImageOverlayService.OverlayTimestamp(bmp, elapsed);
+
+            var eventTag = GetEventTag?.Invoke(streamId);
+            ImageOverlayService.OverlayEventTag(bmp, eventTag);
+        }
+
         return ToJpegBase64(bmp, maxW, quality);
     }
 
@@ -46,6 +74,7 @@ public class ScreenCaptureService
         var id = Guid.NewGuid().ToString();
         var sess = new StreamSession { Id = id, TargetType = "monitor", MonIdx = idx, Interval = interval, Quality = quality, MaxW = maxW };
         _sessions[id] = sess;
+        _streamStartTimes[id] = DateTime.UtcNow;
         _ = StreamLoop(sess);
         return id;
     }
@@ -55,6 +84,7 @@ public class ScreenCaptureService
         var id = Guid.NewGuid().ToString();
         var sess = new StreamSession { Id = id, TargetType = "window", Hwnd = hwnd, Interval = interval, Quality = quality, MaxW = maxW };
         _sessions[id] = sess;
+        _streamStartTimes[id] = DateTime.UtcNow;
         _ = StreamLoop(sess);
         return id;
     }
@@ -66,6 +96,7 @@ public class ScreenCaptureService
             s.Cts.Cancel();
             s.Cts.Dispose();
         }
+        _streamStartTimes.Remove(id);
     }
 
     public bool TryGetSession(string id, out StreamSession? s) => _sessions.TryGetValue(id, out s);
@@ -84,6 +115,7 @@ public class ScreenCaptureService
             session.Cts.Cancel();
         }
         _sessions.Clear();
+        _streamStartTimes.Clear();
     }
 
     private async Task StreamLoop(StreamSession s)
@@ -98,11 +130,11 @@ public class ScreenCaptureService
                     string img;
                     if (s.TargetType == "window")
                     {
-                        img = CaptureWindow(s.Hwnd, s.MaxW, s.Quality);
+                        img = CaptureWindowInternal(s.Hwnd, s.MaxW, s.Quality, s.Id);
                     }
                     else
                     {
-                        img = CaptureSingle(s.MonIdx, s.MaxW, s.Quality);
+                        img = CaptureSingleInternal(s.MonIdx, s.MaxW, s.Quality, s.Id);
                     }
                     await s.Channel.Writer.WriteAsync(img, s.Cts.Token).ConfigureAwait(false);
 
@@ -285,6 +317,61 @@ public class ScreenCaptureService
         return ToJpegBase64(bmp, maxW, quality);
     }
 
+    private string CaptureWindowInternal(long hwnd, int maxW, int quality, string streamId)
+    {
+        var hWnd = new IntPtr(hwnd);
+        if (!IsWindowVisible(hWnd))
+            throw new ArgumentException($"Window {hwnd} is not visible or does not exist");
+
+        GetWindowRect(hWnd, out var rect);
+        var w = rect.Right - rect.Left;
+        var h = rect.Bottom - rect.Top;
+        if (w <= 0 || h <= 0)
+            throw new ArgumentException($"Window {hwnd} has invalid dimensions: {w}x{h}");
+
+        using var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+
+            var hdcDest = g.GetHdc();
+            try
+            {
+                const uint PW_RENDERFULLCONTENT = 0x00000002;
+                bool success = PrintWindow(hWnd, hdcDest, PW_RENDERFULLCONTENT);
+
+                if (!success)
+                {
+                    success = PrintWindow(hWnd, hdcDest, 0);
+                }
+
+                if (!success)
+                {
+                    throw new InvalidOperationException($"PrintWindow failed for window {hwnd}");
+                }
+            }
+            finally
+            {
+                g.ReleaseHdc(hdcDest);
+            }
+        }
+
+        // Apply AI-friendly overlays if enabled
+        if (EnableOverlay)
+        {
+            var startTime = _streamStartTimes.GetValueOrDefault(streamId, DateTime.UtcNow);
+            var elapsed = DateTime.UtcNow - startTime;
+            ImageOverlayService.OverlayTimestamp(bmp, elapsed);
+
+            var eventTag = GetEventTag?.Invoke(streamId);
+            ImageOverlayService.OverlayEventTag(bmp, eventTag);
+        }
+
+        return ToJpegBase64(bmp, maxW, quality);
+    }
+
     public static string CaptureRegion(int x, int y, int w, int h, int maxW, int quality)
     {
         if (w <= 0 || h <= 0)
@@ -325,6 +412,7 @@ public class ScreenCaptureService
             RegionH = h
         };
         _sessions[id] = sess;
+        _streamStartTimes[id] = DateTime.UtcNow;
         _ = StreamLoop2(sess);
         return id;
     }
@@ -338,7 +426,7 @@ public class ScreenCaptureService
                 var start = DateTime.UtcNow;
                 try
                 {
-                    var img = CaptureRegionFixed(s.RegionX, s.RegionY, s.RegionW, s.RegionH, s.Quality);
+                    var img = CaptureRegionFixed(s.RegionX, s.RegionY, s.RegionW, s.RegionH, s.Quality, s.Id);
                     await s.Channel.Writer.WriteAsync(img, s.Cts.Token).ConfigureAwait(false);
 
                     s.LatestFrame = img;
@@ -392,7 +480,7 @@ public class ScreenCaptureService
         }
     }
 
-    private string CaptureRegionFixed(int x, int y, int w, int h, int quality)
+    private string CaptureRegionFixed(int x, int y, int w, int h, int quality, string streamId)
     {
         using var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(bmp))
@@ -402,6 +490,18 @@ public class ScreenCaptureService
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
             g.CopyFromScreen(x, y, 0, 0, new Size(w, h), CopyPixelOperation.SourceCopy);
         }
+
+        // Apply AI-friendly overlays if enabled
+        if (EnableOverlay)
+        {
+            var startTime = _streamStartTimes.GetValueOrDefault(streamId, DateTime.UtcNow);
+            var elapsed = DateTime.UtcNow - startTime;
+            ImageOverlayService.OverlayTimestamp(bmp, elapsed);
+
+            var eventTag = GetEventTag?.Invoke(streamId);
+            ImageOverlayService.OverlayEventTag(bmp, eventTag);
+        }
+
         return ToJpegBase64Fixed(bmp, quality);
     }
 
