@@ -1611,7 +1611,9 @@ public class DesktopUseTools
         [Description("Region height (for 'region' type)")] int h = 360,
         [Description("Frame rate (fps), default 5")] int fps = 5,
         [Description("Enable change detection, default true")] bool detectChanges = true,
-        [Description("Change threshold (0.05-0.20), default 0.08")] double threshold = 0.08)
+        [Description("Change threshold (0.05-0.20), default 0.08")] double threshold = 0.08,
+        [Description("Enable timestamp overlay on captured frames, default false")] bool overlay = false,
+        [Description("Enable contextual prompt generation for LLM, default false")] bool context = false)
     {
         if (_sessionManager == null)
             throw new InvalidOperationException("SessionManager not initialized");
@@ -1629,7 +1631,9 @@ public class DesktopUseTools
                 ["target"] = target,
                 ["fps"] = fps,
                 ["detectChanges"] = detectChanges,
-                ["threshold"] = threshold
+                ["threshold"] = threshold,
+                ["overlay"] = overlay,
+                ["context"] = context
             }
         };
 
@@ -1652,6 +1656,7 @@ public class DesktopUseTools
                 try
                 {
                     string imageData;
+                    string? eventTag = null;
                     var quality = 30; // Normal mode quality
                     
                     switch (target.ToLowerInvariant())
@@ -1671,6 +1676,14 @@ public class DesktopUseTools
                                 {
                                     Console.Error.WriteLine($"[VisualWatch] Failed to capture window: {hwnd}");
                                     continue;
+                                }
+                                // Apply overlay if enabled
+                                if (overlay)
+                                {
+                                    var elapsed = DateTime.UtcNow - session.StartTime;
+                                    ImageOverlayService.OverlayTimestamp(bitmap, elapsed);
+                                    if (eventTag != null)
+                                        ImageOverlayService.OverlayEventTag(bitmap, eventTag);
                                 }
                                 using (bitmap)
                                 using (var ms = new MemoryStream())
@@ -1698,25 +1711,39 @@ public class DesktopUseTools
                     var timestamp = captureTime.ToLocalTime().ToString("HH:mm:ss.f");
                     nextCaptureTime = nextCaptureTime.AddMilliseconds(intervalMs);
 
+                    // Build notification data
+                    var dataDict = new Dictionary<string, object>
+                    {
+                        ["_llm_instruction"] = new Dictionary<string, object>
+                        {
+                            ["action"] = LlmInstructions.ProcessAndDiscardImage.Action,
+                            ["logging_policy"] = LlmInstructions.ProcessAndDiscardImage.LoggingPolicy,
+                            ["steps"] = LlmInstructions.ProcessAndDiscardImage.Steps,
+                            ["token_warning"] = $"This image consumes approx {imageData.Length / 3}+ tokens. Discarding saves 95% memory."
+                        },
+                        ["type"] = "visual_watch",
+                        ["sessionId"] = sessionId,
+                        ["mode"] = mode,
+                        ["ts"] = Math.Round(ts, 1),
+                        ["timestamp"] = timestamp,
+                        ["image"] = imageData
+                    };
+
+                    // Add contextual prompt if enabled
+                    if (context)
+                    {
+                        var frameContext = new FrameContextBuilder()
+                            .WithFrame(imageData)
+                            .WithTimestamps(captureTime, ts)
+                            .WithEventTag(eventTag ?? "Frame")
+                            .Build();
+                        dataDict["prompt"] = frameContext.GenerateContextualPrompt();
+                    }
+
                     var notificationData = new Dictionary<string, object?>
                     {
                         ["level"] = "info",
-                        ["data"] = new Dictionary<string, object>
-                        {
-                            ["_llm_instruction"] = new Dictionary<string, object>
-                            {
-                                ["action"] = LlmInstructions.ProcessAndDiscardImage.Action,
-                                ["logging_policy"] = LlmInstructions.ProcessAndDiscardImage.LoggingPolicy,
-                                ["steps"] = LlmInstructions.ProcessAndDiscardImage.Steps,
-                                ["token_warning"] = $"This image consumes approx {imageData.Length / 3}+ tokens. Discarding saves 95% memory."
-                            },
-                            ["type"] = "visual_watch",
-                            ["sessionId"] = sessionId,
-                            ["mode"] = mode,
-                            ["ts"] = Math.Round(ts, 1),
-                            ["timestamp"] = timestamp,
-                            ["image"] = imageData
-                        }
+                        ["data"] = dataDict
                     };
 
                     await server.SendNotificationAsync("notifications/message", notificationData);

@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
         - `listen`: Start audio capture
     - **MCP Server Registration**: Added `[McpServerToolType]` attribute to `DesktopUseTools` class.
     - **JSON-RPC Compatibility**: All `hwnd` parameters now accept `string` type for better JSON-RPC compatibility.
+- **Vision Optimization**: Enhanced LLM video frame understanding.
+    - **Image Overlay Service**: Timestamp and event tag overlay on captured frames (`overlay` parameter).
+    - **FrameContext Engine**: Automatic temporal prompt generation for improved LLM context understanding (`context` parameter).
+    - **Model-Agnostic Design**: Works with Claude, Qwen, GPT, and other general-purpose LLMs.
 
 ### Fixed
 - **visual_watch GPU Capture**: Updated to use `HybridCaptureService` for GPU-accelerated window capture (YouTube, Netflix, etc.).
